@@ -8,10 +8,23 @@
 
 #include "my_pthread_t.h"
 
+#define MEM 64000
+
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
 	
-	printf("Creating thread\n");
+	tcb * threadBlock;
+	threadBlock = malloc(sizeof(tcb));
+	threadBlock->pthread = thread;
+	
+	// create context for thread
+	threadBlock->context = malloc(sizeof(ucontext_t));
+	getcontext(threadBlock->context);
+	threadBlock->context->uc_link = 0;
+	threadBlock->context->uc_stack.ss_sp = malloc(MEM);
+	threadBlock->context->uc_stack.ss_size = MEM;
+	threadBlock->context->uc_stack.ss_flags = 0;
+	makecontext(threadBlock->context, (void (*)(void))function, 1, arg);
 	
 	return 0;
 };
@@ -19,6 +32,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 /* give CPU pocession to other user level threads voluntarily */
 int my_pthread_yield() {
 	
+	printf("Yield called\n");
 	
 	return 0;
 };
@@ -29,6 +43,9 @@ void my_pthread_exit(void *value_ptr) {
 
 /* wait for thread termination */
 int my_pthread_join(my_pthread_t thread, void **value_ptr) {
+	
+	printf("Join called on thread %d\n", thread);
+	
 	return 0;
 };
 

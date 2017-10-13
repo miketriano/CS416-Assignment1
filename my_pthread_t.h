@@ -18,10 +18,12 @@
 #include <stdlib.h>
 #include <ucontext.h>
 
-typedef int my_pthread_t;
+typedef uint my_pthread_t;
 
 typedef struct threadControlBlock {
-	/* add something here */
+	my_pthread_t * pthread;
+	ucontext_t * context;
+	int startTime;
 } tcb; 
 
 /* mutex struct definition */
