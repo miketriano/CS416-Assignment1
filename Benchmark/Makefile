@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -w
+CFLAGS = -g -w -std=gnu99
 
 all:: parallelCal vectorMultiply externalCal
 
