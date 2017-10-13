@@ -9,6 +9,10 @@
 #include "my_pthread_t.h"
 
 #define MEM 64000
+#define THREAD_NUM 10
+
+int currentThread = 0;
+tcb threadBlocks[THREAD_NUM];
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
@@ -25,6 +29,9 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 	threadBlock->context->uc_stack.ss_size = MEM;
 	threadBlock->context->uc_stack.ss_flags = 0;
 	makecontext(threadBlock->context, (void (*)(void))function, 1, arg);
+	
+	threadBlocks[currentThread] = *threadBlock;
+	currentThread++;
 	
 	return 0;
 };
@@ -45,6 +52,8 @@ void my_pthread_exit(void *value_ptr) {
 int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 	
 	printf("Join called on thread %d\n", thread);
+	
+	setcontext(threadBlocks[thread].context);
 	
 	return 0;
 };
