@@ -33,7 +33,8 @@ ucontext_t * YIELD;
 ucontext_t * JOIN;
 
 sigset_t * sigvtalrm_set;
-my_pthread_t * handle;
+my_pthread_t * thread_handle;
+my_pthread_mutex_t * mutex_handle;
 
 
 int initialized = 0;
@@ -70,7 +71,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 	
 	
 	//blocks interruption
-	sigprocmask(SIG_BLOCK, sigvtalrm_set, NULL);
+	//sigprocmask(SIG_BLOCK, sigvtalrm_set, NULL);
 	DEBUG_PRINT(("Create new thread for my_thread_t: %d \n", *thread));	
 	newThreadContext = (ucontext_t*)malloc(sizeof(ucontext_t));
 	getcontext(newThreadContext);
@@ -79,8 +80,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 	newThreadContext->uc_stack.ss_sp = malloc(STACK_SIZE);
 	newThreadContext->uc_stack.ss_size = STACK_SIZE;
 	newThreadContext->uc_stack.ss_flags = 0;
-	handle = thread;
-	makecontext(newThreadContext, (void (*)(void))function, 1, (void*) handle);
+	thread_handle = thread;
+	makecontext(newThreadContext, (void (*)(void))function, 1, (void*) thread_handle);
 	swapcontext(runningContext,NEWTHREAD);
 	//Returns interruption
 	sigprocmask(SIG_UNBLOCK, sigvtalrm_set, NULL);	
@@ -135,7 +136,7 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 	return 0;
 };
 
-/*Alarm handler*/
+/*Alarm thread_handler*/
 void sighandler (int sig){
 	DEBUG_PRINT(("ALARM triggered, FLAG: %d. \n", FLAG));
 	if(FLAG == 0){
@@ -146,7 +147,7 @@ void sighandler (int sig){
 			
 }
 /*Scheduler functions*/
-int my_scheduler_initialize(){
+void my_scheduler_initialize(){
 	DEBUG_PRINT(("Initizlied value in scheduler:  %d\n", initialized));	
 	/*record time this is called*/
 	clock_t tempClock = clock();
@@ -170,16 +171,15 @@ int my_scheduler_initialize(){
 	sigvtalrm_set = (sigset_t *) calloc(1, sizeof(sigset_t));
 	sigaddset(sigvtalrm_set, SIGVTALRM); //Threads with mask_block enabled is not interrupted by Alarms
 
-	/*Prepare timer and signal handlers*/
+	/*Prepare timer and signal thread_handlers*/
 	scheduler-> alarmClock = (struct itimerval *) calloc(1, sizeof(struct itimerval));
-	scheduler-> alarmClock-> it_interval.tv_sec = 0;
-	scheduler-> alarmClock-> it_value.tv_sec=2;
 	
 	
 	/*SET alarm signal action*/
 	scheduler->act.sa_handler = sighandler;
 	sigemptyset(&(scheduler->act).sa_mask);
-	scheduler->act.sa_flags = 0;
+	scheduler->act.sa_flags = 0;	
+	sigaction(SIGVTALRM, &scheduler->act, &scheduler->oact);
 	
 	/*Initialize entry points*/
 	
@@ -196,16 +196,76 @@ int my_scheduler_initialize(){
 	makecontext(NEWTHREAD, (void*)&my_scheduler_newThread, 0, NULL);
 	
 	//ENDTHREAD
-	DEBUG_PRINT(("Flag1\n"));
 	ENDTHREAD = (ucontext_t*) malloc(sizeof(ucontext_t));
 	getcontext(ENDTHREAD);
 	ENDTHREAD->uc_link = NULL;
 	ENDTHREAD->uc_stack.ss_sp = malloc(STACK_SIZE);
 	ENDTHREAD->uc_stack.ss_size = STACK_SIZE;
 	ENDTHREAD->uc_stack.ss_flags = 0;		
-	sigaddset(&(ENDTHREAD->uc_sigmask), SIGVTALRM);
-	DEBUG_PRINT(("Flag2\n"));
-	makecontext(ENDTHREAD, (void*)&my_scheduler_endThread, 1, handle);
+	//sigaddset(&(ENDTHREAD->uc_sigmask), SIGVTALRM);
+	makecontext(ENDTHREAD, (void*)&my_scheduler_endThread, 1, thread_handle);
+
+	//SCHEDULE
+	SCHEDULE = (ucontext_t*) malloc(sizeof(ucontext_t));
+	getcontext(SCHEDULE);
+	SCHEDULE->uc_link = NULL;
+	SCHEDULE->uc_stack.ss_sp = malloc(STACK_SIZE);
+	SCHEDULE->uc_stack.ss_size = STACK_SIZE;
+	SCHEDULE->uc_stack.ss_flags = 0;		
+	sigaddset(&(SCHEDULE->uc_sigmask), SIGVTALRM);
+	makecontext(SCHEDULE, (void*)&my_scheduler_schedule, 1, thread_handle);
+	
+
+	//EXIT
+	EXIT = (ucontext_t*) malloc(sizeof(ucontext_t));
+	getcontext(EXIT);
+	EXIT->uc_link = NULL;
+	EXIT->uc_stack.ss_sp = malloc(STACK_SIZE);
+	EXIT->uc_stack.ss_size = STACK_SIZE;
+	EXIT->uc_stack.ss_flags = 0;		
+	sigaddset(&(EXIT->uc_sigmask), SIGVTALRM);
+	makecontext(EXIT, (void*)&my_scheduler_exit, 1, thread_handle);
+	
+	
+	//NEWLOCK
+	NEWLOCK = (ucontext_t*) malloc(sizeof(ucontext_t));
+	getcontext(NEWLOCK);
+	NEWLOCK->uc_link = NULL;
+	NEWLOCK->uc_stack.ss_sp = malloc(STACK_SIZE);
+	NEWLOCK->uc_stack.ss_size = STACK_SIZE;
+	NEWLOCK->uc_stack.ss_flags = 0;		
+	sigaddset(&(NEWLOCK->uc_sigmask), SIGVTALRM);
+	makecontext(NEWLOCK, (void*)&my_scheduler_newLock, 1, mutex_handle);
+	
+	//DESTROYLOCK
+	DESTROYLOCK = (ucontext_t*) malloc(sizeof(ucontext_t));
+	getcontext(DESTROYLOCK);
+	DESTROYLOCK->uc_link = NULL;
+	DESTROYLOCK->uc_stack.ss_sp = malloc(STACK_SIZE);
+	DESTROYLOCK->uc_stack.ss_size = STACK_SIZE;
+	DESTROYLOCK->uc_stack.ss_flags = 0;		
+	sigaddset(&(DESTROYLOCK->uc_sigmask), SIGVTALRM);
+	makecontext(DESTROYLOCK, (void*)&my_scheduler_destoryLock, 1, mutex_handle);
+		
+	// YIELD
+	YIELD = (ucontext_t*) malloc(sizeof(ucontext_t));
+	getcontext(YIELD);
+	YIELD->uc_link = NULL;
+	YIELD->uc_stack.ss_sp = malloc(STACK_SIZE);
+	YIELD->uc_stack.ss_size = STACK_SIZE;
+	YIELD->uc_stack.ss_flags = 0;		
+	sigaddset(&(YIELD->uc_sigmask), SIGVTALRM);
+	makecontext(YIELD, (void*)&my_scheduler_yield, 1, thread_handle);
+	
+	// JOIN;
+	JOIN = (ucontext_t*) malloc(sizeof(ucontext_t));
+	getcontext(YIELD);
+	JOIN->uc_link = NULL;
+	JOIN->uc_stack.ss_sp = malloc(STACK_SIZE);
+	JOIN->uc_stack.ss_size = STACK_SIZE;
+	JOIN->uc_stack.ss_flags = 0;		
+	sigaddset(&(YIELD->uc_sigmask), SIGVTALRM);
+	makecontext(YIELD, (void*)&my_scheduler_join, 1, thread_handle);
 	
 	
 	DEBUG_PRINT(("Flag3\n"));
@@ -230,12 +290,11 @@ int my_scheduler_initialize(){
 	/*Schedule the original thread*/	
 	DEBUG_PRINT(("clock_t %d \n", (double)originalThreadTCB->createdTime));
 	
-	
-	sigaction(SIGVTALRM, &scheduler->act, &scheduler->oact);
+	scheduler-> alarmClock-> it_interval.tv_sec = 0;
+	scheduler-> alarmClock-> it_value.tv_sec=2;
 	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
-	DEBUG_PRINT(("DEBUG version 3. \n"));
-	//swapcontext(schedulerContext,((tcb_t*)runningQu	eues[0]->data)->context);
-	swapcontext(schedulerContext, newContext);
+	setcontext(((tcb_t*)(scheduler->runningQueues[0]->data))->context);
+	//swapcontext(schedulerContext, newContext);
 	while(1){
 		
 	}
@@ -243,18 +302,30 @@ int my_scheduler_initialize(){
 
 
 //NEWTHREAD
-int my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg){
+void my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg){
 	
 	DEBUG_PRINT(("Scheduling new thread Thread %d. \n", *((my_pthread_t *)arg)));
 	DEBUG_PRINT(("Flag1\n"));
-	setcontext(newThreadContext);	
+	setcontext(newThreadContext);
 }
-int my_scheduler_endThread(my_pthread_t * thread){
+void my_scheduler_endThread(my_pthread_t * thread){
 	DEBUG_PRINT(("End Thread %d. \n", thread));
+	while(1){
+		
+	}
 };
+
+
+void my_scheduler_maintainence(){};
+void my_scheduler_schedule(){};
+void my_scheduler_newLock(){};
+void my_scheduler_join(){};
+void my_scheduler_exit(){};
+void my_scheduler_destoryLock(){};
+void my_scheduler_yield(){};
 /* typedef struct Node {
 	void * data;
-	struct Node * next;
+	struct Node * next;	
 }node_t; */
 
 

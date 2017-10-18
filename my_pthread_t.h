@@ -91,11 +91,16 @@ typedef struct Scheduler{
 int tcb_find(tcb_t * thread, void* thread_pointer);
 
 /*My Scheduler Functions*/
-int my_scheduler_initialize();
-int my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg);
-int my_scheduler_endThread(my_pthread_t * thread);
-int my_scheduler_maintainence();
-
+void my_scheduler_initialize();
+void my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg);
+void my_scheduler_endThread(my_pthread_t * thread);
+void my_scheduler_maintainence();
+void my_scheduler_schedule();
+void my_scheduler_newLock();
+void my_scheduler_join();
+void my_scheduler_exit();
+void my_scheduler_destoryLock();
+void my_scheduler_yield();
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg);
