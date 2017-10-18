@@ -19,10 +19,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <ucontext.h>
+#include <time.h>
 
-#define LEVELS_NUM 20
-#define  RUN_INTERVAL 1000
-#define MAINTAINENCE_INTERVAL
 //Using enum to simplify thread status, RUNNING = 0, etc, etc.
 enum thread_status {RUNNING, WAITING, TERMINATED};
 
@@ -31,9 +29,15 @@ typedef struct Mutex my_pthread_mutex_t;
 typedef struct ThreadControlBlock tcb_t;
 //For convenience, tcb_t IS the threadControlBlock, since we are not concerned about memory security. 
 //Adding tcb_t's numerical system requires ID distribution and addtional search functionality on linked list.
+//Node for Linked List(LL)
+typedef struct Node {
+	void * data;
+	struct Node * next;
+}node_t;
+
 struct ThreadControlBlock {
 	//tcb_t is a pointer in order to access with different context (hence different stack and variables)
-	my_pthread_t ID;
+	my_pthread_t TID;
 	//Link to context.
 	ucontext_t * context;
 	
@@ -50,33 +54,19 @@ struct ThreadControlBlock {
 
 	//mutex related
 	my_pthread_mutex_t * waiting_lock; //The lock this thread is waiting for to run, if any.
-	my_pthread_mutex_t ** holding_locks; //The locks this thread is holding, this is used for priority bump.
+	node_t * holding_locks; //The locks this thread is holding, this is used for priority bump.
 	
 };
 
-//Node for Linked List(LL)
-typedef struct Node {
-	void * data;
-	struct Node * next;
-}node_t;
+
 
 /* mutex struct definition */
 struct Mutex{
 	int locked;
 	tcb_t * owner;
-	tcb_t ** wait_list;
+	node_t * wait_list;
 };
 
-typedef struct Scheduler{
-	node_t * runningQueues[LEVELS_NUM];
-	node_t * waitingQueue;
-	node_t * all_threads;
-	
-	/*Self stats*/
-	clock_t lastMaintainence;
-	int threadCount;
-	
-}my_scheduler_t;
 
 /* Function Declarations: */
 
@@ -118,9 +108,8 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex);
 
 
 /*Linked List(LL) Functions*/
-void LL_push(node_t ** listHead, void * new_data, size_t data_size);
-int LL_pop(node_t ** listHead, void * get_data, size_t data_size);
-void LL_append(node_t ** listHead, void * new_data, size_t data_size);
-int LL_get(node_t ** listHead, void * get_data, size_t data_size);
-int LL_remove(node_t ** listHead, void * target, size_t data_size);
+void LL_push(node_t ** listHead, void * new_data);
+int LL_pop(node_t ** listHead, void * returned_data);
+void LL_append(node_t ** listHead, void * new_data);
+int LL_remove(node_t ** listHead, void * target);
 #endif
