@@ -69,7 +69,7 @@ struct Mutex{
 };
 typedef struct Params{
 	my_pthread_t * thread;
-	void * function_ptr;
+	void *(*function)(void*);
 	void* arg;
 } params_t;
 
@@ -93,6 +93,7 @@ int tcb_find(tcb_t * thread, void* thread_pointer);
 /*My Scheduler Functions*/
 int my_scheduler_initialize();
 int my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg);
+int my_scheduler_endThread(my_pthread_t * thread);
 int my_scheduler_maintainence();
 
 
