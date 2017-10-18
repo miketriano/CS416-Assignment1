@@ -1,12 +1,12 @@
-// File:	my_pthread_t.h
+// File:	tcb_t.h
 // Author:	Xiaochen Li
 // Date:	10/17/2017
 
 // name: Xiaochen Li 		
 // username of iLab: xl234
 // iLab Server: composite.cs.rutgers.edu
-#ifndef MY_PTHREAD_T_H
-#define MY_PTHREAD_T_H
+#ifndef tcb_t_H
+#define tcb_t_H
 
 #define _GNU_SOURCE
 
@@ -27,10 +27,13 @@
 enum thread_status {RUNNING, WAITING, TERMINATED};
 
 typedef uint my_pthread_t;
-
-typedef struct ThreadControlBlock {
-	//My_pthread_t is a pointer in order to access with different context (hence different stack and variables)
-	my_pthread_t* self;
+typedef struct Mutex my_pthread_mutex_t;
+typedef struct ThreadControlBlock tcb_t;
+//For convenience, tcb_t IS the threadControlBlock, since we are not concerned about memory security. 
+//Adding tcb_t's numerical system requires ID distribution and addtional search functionality on linked list.
+struct ThreadControlBlock {
+	//tcb_t is a pointer in order to access with different context (hence different stack and variables)
+	my_pthread_t ID;
 	//Link to context.
 	ucontext_t * context;
 	
@@ -49,46 +52,39 @@ typedef struct ThreadControlBlock {
 	my_pthread_mutex_t * waiting_lock; //The lock this thread is waiting for to run, if any.
 	my_pthread_mutex_t ** holding_locks; //The locks this thread is holding, this is used for priority bump.
 	
-}tcb_t; 
+};
 
 //Node for Linked List(LL)
-typedef struct Node{
+typedef struct Node {
 	void * data;
 	struct Node * next;
 }node_t;
 
 /* mutex struct definition */
-typedef struct Mutex{
-	int locked = 0;
-	my_pthread_t * owner;
-	my_pthread_t ** wait_list;
-} my_pthread_mutex_t;
+struct Mutex{
+	int locked;
+	tcb_t * owner;
+	tcb_t ** wait_list;
+};
 
 typedef struct Scheduler{
-	//The context of the scheduler itself.
-	ucontext_t * context;
-	
 	node_t * runningQueues[LEVELS_NUM];
 	node_t * waitingQueue;
 	node_t * all_threads;
 	
 	/*Self stats*/
 	clock_t lastMaintainence;
+	int threadCount;
 	
 }my_scheduler_t;
 
 /* Function Declarations: */
 
-/*Linked List(LL) Functions*/
-void LL_push(node_t ** listHead, void * new_data, size_t data_size);
-int LL_pop(node_t ** listHead, void * get_data, size_t data_size);
-void LL_append(node_t ** listHead, void * new_data, size_t data_size);
-int LL_get(node_t ** listHead, void * get_data, size_t data_size);
-int LL_remove(node_t ** listHead, void * target, size_t data_size);
+
 
 /*Find() functioins TCB linked lists*/
 
-int tcb_find();
+int tcb_find(tcb_t * thread, void* thread_pointer);
 
 /*My Scheduler Functions*/
 int my_scheduler_initialize();
@@ -106,7 +102,7 @@ int my_pthread_yield();
 void my_pthread_exit(void *value_ptr);
 
 /* wait for thread termination */
-int my_pthread_join(my_pthread_t thread, void **value_ptr);
+int my_pthread_join(my_pthread_t, void **value_ptr);
 
 /* initial the mutex lock */
 int my_pthread_mutex_init(my_pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr);
@@ -120,4 +116,11 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex);
 /* destroy the mutex */
 int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex);
 
+
+/*Linked List(LL) Functions*/
+void LL_push(node_t ** listHead, void * new_data, size_t data_size);
+int LL_pop(node_t ** listHead, void * get_data, size_t data_size);
+void LL_append(node_t ** listHead, void * new_data, size_t data_size);
+int LL_get(node_t ** listHead, void * get_data, size_t data_size);
+int LL_remove(node_t ** listHead, void * target, size_t data_size);
 #endif
