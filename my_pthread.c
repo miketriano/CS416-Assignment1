@@ -22,6 +22,7 @@
 ucontext_t * schedulerContext;
 ucontext_t * tempContext;
 int initialized = 0;
+int FLAG = 0;
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
@@ -44,6 +45,9 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 		//Immediate yields to scheduler.
 		swapcontext(tempContext,schedulerContext);		
 		DEBUG_PRINT(("Initialized.\n"));	
+		while(1){
+			
+		}
 	}
 	DEBUG_PRINT(("Create thread Called. %p\n", thread));	
 	
@@ -118,7 +122,10 @@ int my_scheduler_initialize(){
 	
 	/*Set context to scheduler*/
 	void sighandler (int sig){
-		DEBUG_PRINT(("ALARM triggered. \n"));
+		DEBUG_PRINT(("ALARM triggered, Set FLAG to 1. \n"));
+		FLAG = 1;
+		swapcontext(tempContext, schedulerContext);
+		
 	}
 	struct sigaction act, oact;
 	act.sa_handler = sighandler;
@@ -143,33 +150,35 @@ int my_scheduler_initialize(){
 	}; */
 	
 	/*Wrap oringal context into a thread*/
-	node_t * originalThreadTCB = (node_t *)malloc(sizeof(node_t));
-	originalThreadTCB->data = (void*) malloc(sizeof(tcb_t));
+	tcb_t * originalThreadTCB = (tcb_t *)malloc(sizeof(tcb_t));
 	//ucontext_t * newContext = (ucontext_t *) malloc(sizeof(ucontext_t)) ;
 	//memcpy (newContext, tempContext,sizeof(ucontext_t));
-	((tcb_t *)originalThreadTCB->data)-> context = tempContext;
-	//tempContext = NULL;
-	((tcb_t *)originalThreadTCB->data)-> TID = 1;		
-	((tcb_t *)originalThreadTCB->data)->createdTime = tempClock;
-	((tcb_t *)originalThreadTCB->data)->totalCPUTime = 0;
-	((tcb_t *)originalThreadTCB->data)->startTime = tempClock;
-	((tcb_t *)originalThreadTCB->data)->stopTime = tempClock;
-	((tcb_t *)originalThreadTCB->data)->priority = 0;
-	((tcb_t *)originalThreadTCB->data)->waiting_lock = NULL;
-	((tcb_t *)originalThreadTCB->data)->holding_locks = NULL;
+	originalThreadTCB-> context = tempContext;
+	originalThreadTCB-> TID = 1;		
+	originalThreadTCB->createdTime = tempClock;
+	originalThreadTCB->totalCPUTime = 0;
+	originalThreadTCB->startTime = tempClock;
+	originalThreadTCB->stopTime = tempClock;
+	originalThreadTCB->priority = 0;
+	originalThreadTCB->waiting_lock = NULL;
+	originalThreadTCB->holding_locks = NULL;
 	
 	LL_append(&all_threads, (void*)originalThreadTCB);
 	threadCount ++;
 	LL_append(&runningQueues[0], (void*)originalThreadTCB);
 	
 	/*Schedule the original thread*/	
-	DEBUG_PRINT(("clock_t %d \n", (double)((tcb_t *)originalThreadTCB->data)->createdTime));
+	DEBUG_PRINT(("clock_t %d \n", (double)originalThreadTCB->createdTime));
 	sigaction(SIGVTALRM, &act, &oact);
 	setitimer(ITIMER_VIRTUAL, clock, NULL);	
 	DEBUG_PRINT(("DEBUG version 2. \n"));
-	//DEBUG_PRINT(("Context address %p \n",((tcb_t*)runningQueues[0]->data)->context));	
-	swapcontext(schedulerContext,tempContext);	
+	DEBUG_PRINT(("Context address %p \n",((tcb_t*)runningQueues[0]->data)->context));	
+	swapcontext(schedulerContext,((tcb_t*)runningQueues[0]->data)->context);
 	
+	while(threadCount>0){
+		DEBUG_PRINT(("Scheduler invoded."));
+	}
+	DEBUG_PRINT(("All tasks Finished. Now exit"));
 	/*infinite loop to wait for SIGVTALRM*/
 };
 
