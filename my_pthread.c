@@ -21,7 +21,16 @@
 
 ucontext_t * schedulerContext;
 ucontext_t * runningContext;
-ucontext_t * signalContext;
+
+/*Entry points*/
+ucontext_t * SCHEDULE;
+ucontext_t * ENDTHREAD;
+ucontext_t * EXIT;
+ucontext_t * NEWTHREAD;
+ucontext_t * NEWLOCK;
+ucontext_t * DESTROYLOCK;
+ucontext_t * YIELD;
+ucontext_t * JOIN;
 
 int initialized = 0;
 volatile int FLAG =0;
@@ -29,7 +38,8 @@ int schedulerCallLock =0;
 
 const size_t TCB_SIZE = sizeof(tcb_t);
 const size_t MUTEX_SIZE = sizeof(my_pthread_mutex_t);	
-params_t params;
+params_t * params;
+ucontext_t * newThreadContext;
 my_scheduler_t * scheduler;
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
@@ -39,7 +49,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 		initialized = 1;
 		/*Make of copy of itself, so that scheduler can warp it into a user thread*/
 		runningContext = malloc(sizeof(ucontext_t));
-		signalContext = malloc(sizeof(ucontext_t));
+		SCHEDULE = malloc(sizeof(ucontext_t));
 		
 		// Create context for scheduler
 		schedulerContext= malloc(sizeof(ucontext_t));
@@ -48,17 +58,23 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 		schedulerContext->uc_stack.ss_sp = malloc(10*STACK_SIZE);
 		schedulerContext->uc_stack.ss_size = 10*STACK_SIZE;
 		schedulerContext->uc_stack.ss_flags = 0;		
-		makecontext(schedulerContext, (void*)&my_scheduler_initialize, 0, arg);
-		
+		makecontext(schedulerContext, (void*)&my_scheduler_initialize, 0, arg);		
 		//Immediate yields to scheduler.
 		swapcontext(runningContext,schedulerContext);		
 		DEBUG_PRINT(("Scheduler Initialized. Original Thread resumed. \n"));	
 	}
-	params.thread = thread;
-	params.function_ptr = (void (*)(void))function;
-	params.arg = arg;
+	newThreadContext = (ucontext_t*)malloc(sizeof(ucontext_t));
+	getcontext(newThreadContext);
 	FLAG = 2;
-	DEBUG_PRINT(("Create thread Called. %p\n", thread));	
+	newThreadContext->uc_link = NULL;
+	newThreadContext->uc_stack.ss_sp = malloc(STACK_SIZE);
+	newThreadContext->uc_stack.ss_size = STACK_SIZE;
+	newThreadContext->uc_stack.ss_flags = 0;
+	
+	makecontext(newThreadContext, (void (*)(void))function, 1, arg);	
+	swapcontext(runningContext,NEWTHREAD);
+	
+	
 	while(1){
 		
 	}
@@ -70,12 +86,13 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 int my_pthread_yield() {
 	
 	printf("Yield called\n");
-	swapcontext(signalContext,schedulerContext);
+	swapcontext(SCHEDULE,schedulerContext);
 	return 0;
 };
 
 /* terminate a thread */
 void my_pthread_exit(void *value_ptr) {
+	DEBUG_PRINT(("exit called on value %p\n",value_ptr));	
 };
 
 /* wait for thread termination */
@@ -87,21 +104,25 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 
 /* initial the mutex lock */
 int my_pthread_mutex_init(my_pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
+	DEBUG_PRINT(("mutex_init  called on value %p\n",mutex));	
 	return 0;
 };
 
 /* aquire the mutex lock */
 int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
+	DEBUG_PRINT(("mutex_lock  called on value %p\n",mutex));
 	return 0;
 };
 
 /* release the mutex lock */
 int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
+	DEBUG_PRINT(("mutex_unlock  called on value %p\n",mutex));
 	return 0;
 };
 
 /* destroy the mutex */
 int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
+	DEBUG_PRINT(("mutex_destroy  called on value %p\n",mutex));
 	return 0;
 };
 
@@ -117,20 +138,21 @@ void sighandler (int sig){
 }
 /*Scheduler functions*/
 int my_scheduler_initialize(){
-	DEBUG_PRINT(("Initizlied value in scheduler %d\n", initialized));	
+	DEBUG_PRINT(("Initizlied value in scheduler:  %d\n", initialized));	
 	/*record time this is called*/
 	clock_t tempClock = clock();
-	
 	/*Setting constants*/
 	scheduler = (my_scheduler_t*)malloc(sizeof(my_scheduler_t));
 	/*Scheduler variables*/
+	
+
 	scheduler->runningQueues = (node_t **) malloc(LEVELS_NUM*sizeof(node_t*));
 	int i;
-	DEBUG_PRINT(("Flag0"));	
+	
 	for (i=0;i<LEVELS_NUM;i++){
 		scheduler->runningQueues[i] = NULL;
 	}
-	DEBUG_PRINT(("Flag1"));	
+	
 	scheduler-> waitingQueue = NULL;
 	scheduler-> all_threads = NULL;
 	scheduler-> lastMaintainence = tempClock;
@@ -141,11 +163,25 @@ int my_scheduler_initialize(){
 	scheduler-> alarmClock-> it_interval.tv_sec = 0;
 	scheduler-> alarmClock-> it_value.tv_sec=2;
 	
-	/*Set context to scheduler*/
+	
+	/*SET alarm signal action*/
 	scheduler->act.sa_handler = sighandler;
 	sigemptyset(&(scheduler->act).sa_mask);
 	scheduler->act.sa_flags = 0;
 	
+	/*Initialize entry points*/
+	DEBUG_PRINT(("Flag1\n"));
+	NEWTHREAD = (ucontext_t*) malloc(sizeof(ucontext_t));
+	getcontext(NEWTHREAD);
+	NEWTHREAD->uc_link = NULL;
+	NEWTHREAD->uc_stack.ss_sp = malloc(10*STACK_SIZE);
+	NEWTHREAD->uc_stack.ss_size = 10*STACK_SIZE;
+	NEWTHREAD->uc_stack.ss_flags = 0;		
+	DEBUG_PRINT(("Flag2\n"));
+	
+	makecontext(NEWTHREAD, (void*)&my_scheduler_newThread, 3, params);
+	
+	DEBUG_PRINT(("Flag3\n"));
 	/*Wrap oringal context into a thread*/
 	tcb_t * originalThreadTCB = (tcb_t *)malloc(sizeof(tcb_t));
 	ucontext_t * newContext = (ucontext_t *) malloc(sizeof(ucontext_t)) ;
@@ -166,6 +202,8 @@ int my_scheduler_initialize(){
 	
 	/*Schedule the original thread*/	
 	DEBUG_PRINT(("clock_t %d \n", (double)originalThreadTCB->createdTime));
+	
+	
 	sigaction(SIGVTALRM, &scheduler->act, &scheduler->oact);
 	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
 	DEBUG_PRINT(("DEBUG version 3. \n"));
@@ -173,18 +211,10 @@ int my_scheduler_initialize(){
 	swapcontext(schedulerContext, newContext);
 };
 
-int my_scheduler_newThread(my_pthread_mutex_t *mutex,void *(*function)(void*), void * arg){
-	DEBUG_PRINT(("Creating new Thread. \n"));
-	ucontext_t * newThreadContext = malloc(sizeof(ucontext_t));
-	getcontext(newThreadContext);
-	schedulerContext->uc_link = schedulerContext;
-	schedulerContext->uc_stack.ss_sp = malloc(STACK_SIZE);
-	schedulerContext->uc_stack.ss_size = STACK_SIZE;
-	schedulerContext->uc_stack.ss_flags = 0;		
-	makecontext(schedulerContext, (void (*)(void))function, 1, arg);
-	
-	//Immediate yields to scheduler.
-	swapcontext(runningContext,schedulerContext);	
+int my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg){
+	DEBUG_PRINT(("Creating new Thread %d. \n"));
+	DEBUG_PRINT(("Flag1\n"));
+	setcontext(newThreadContext);	
 }
 
 /* typedef struct Node {
