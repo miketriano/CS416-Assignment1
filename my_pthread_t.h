@@ -56,6 +56,7 @@ struct ThreadControlBlock {
 	//mutex related
 	my_pthread_mutex_t * waiting_lock; //The lock this thread is waiting for to run, if any.
 	node_t * holding_locks; //The locks this thread is holding, this is used for priority bump.
+	node_t * joinedThreads; //This threads waits for them to finish.
 	
 };
 
@@ -78,6 +79,8 @@ typedef struct Scheduler{
 	node_t * waitingQueue;
 	node_t * all_threads;
 	int threadCount;
+	
+	tcb_t * runningThreadTCB;
 	clock_t lastMaintainence;
 	struct itimerval * alarmClock;
 	struct sigaction act, oact;
@@ -92,8 +95,8 @@ int tcb_find(tcb_t * thread, void* thread_pointer);
 
 /*My Scheduler Functions*/
 void my_scheduler_initialize();
-void my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg);
-void my_scheduler_endThread(my_pthread_t * thread);
+void my_scheduler_newThread();
+void my_scheduler_endThread();
 void my_scheduler_maintainence();
 void my_scheduler_schedule();
 void my_scheduler_newLock();
@@ -101,6 +104,10 @@ void my_scheduler_join();
 void my_scheduler_exit();
 void my_scheduler_destoryLock();
 void my_scheduler_yield();
+
+/*Scheduler helper functions*/
+void requeue (tcb_t * ThreadTCB);
+void dequeue(tcb_t * ThreadTCB);
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg);

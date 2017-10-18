@@ -15,7 +15,7 @@
 
 #define STACK_SIZE 64000
 #define LEVELS_NUM 20
-#define BASE_INTERVAL
+#define BASE_INTERVAL 25000
 #define  RUN_INTERVAL 1000
 #define MAINTAINENCE_INTERVAL 1000*BASE_INTERVAL
 
@@ -71,7 +71,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 	
 	
 	//blocks interruption
-	//sigprocmask(SIG_BLOCK, sigvtalrm_set, NULL);
+	sigprocmask(SIG_BLOCK, sigvtalrm_set, NULL);
 	DEBUG_PRINT(("Create new thread for my_thread_t: %d \n", *thread));	
 	newThreadContext = (ucontext_t*)malloc(sizeof(ucontext_t));
 	getcontext(newThreadContext);
@@ -84,11 +84,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 	makecontext(newThreadContext, (void (*)(void))function, 1, (void*) thread_handle);
 	swapcontext(runningContext,NEWTHREAD);
 	//Returns interruption
-	sigprocmask(SIG_UNBLOCK, sigvtalrm_set, NULL);	
-	while(1){
-		
-	}
-	swapcontext(runningContext,schedulerContext);
+	sigprocmask(SIG_UNBLOCK, sigvtalrm_set, NULL);
+	//while(1){}
 	return 0;
 };
 
@@ -109,24 +106,29 @@ void my_pthread_exit(void *value_ptr) {
 int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 	
 	DEBUG_PRINT(("Join called on thread %p\n", &thread));	
+	while(1){}
 	return 0;
 };
 
 /* initial the mutex lock */
 int my_pthread_mutex_init(my_pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
-	DEBUG_PRINT(("mutex_init  called on value %p\n",mutex));	
+	DEBUG_PRINT(("mutex_init  called on value %p\n",mutex));
+	DEBUG_PRINT(("Currente Thread ID:  %d\n",scheduler->runningThreadTCB->TID));	
+	
 	return 0;
 };
 
 /* aquire the mutex lock */
 int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 	DEBUG_PRINT(("mutex_lock  called on value %p\n",mutex));
+	DEBUG_PRINT(("Currente Thread ID:  %d\n",scheduler->runningThreadTCB->TID));	
 	return 0;
 };
 
 /* release the mutex lock */
 int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
 	DEBUG_PRINT(("mutex_unlock  called on value %p\n",mutex));
+	DEBUG_PRINT(("Currente Thread ID:  %d\n",scheduler->runningThreadTCB->TID));	
 	return 0;
 };
 
@@ -138,13 +140,11 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 
 /*Alarm thread_handler*/
 void sighandler (int sig){
-	DEBUG_PRINT(("ALARM triggered, FLAG: %d. \n", FLAG));
-	if(FLAG == 0){
-		//swapcontext(runningContext, schedulerContext);
-	}else if(FLAG ==1){
-		DEBUG_PRINT(("ALARM triggered, FLAG: %d. \n", FLAG));
+	DEBUG_PRINT(("Time to run Scheduler. ALARM triggered, FLAG: %d. \n", FLAG));	
+	while(1){
+		
 	}
-			
+	swapcontext(runningContext, SCHEDULE);			
 }
 /*Scheduler functions*/
 void my_scheduler_initialize(){
@@ -202,7 +202,7 @@ void my_scheduler_initialize(){
 	ENDTHREAD->uc_stack.ss_sp = malloc(STACK_SIZE);
 	ENDTHREAD->uc_stack.ss_size = STACK_SIZE;
 	ENDTHREAD->uc_stack.ss_flags = 0;		
-	//sigaddset(&(ENDTHREAD->uc_sigmask), SIGVTALRM);
+	sigaddset(&(ENDTHREAD->uc_sigmask), SIGVTALRM);
 	makecontext(ENDTHREAD, (void*)&my_scheduler_endThread, 1, thread_handle);
 
 	//SCHEDULE
@@ -282,6 +282,7 @@ void my_scheduler_initialize(){
 	originalThreadTCB->priority = 0;
 	originalThreadTCB->waiting_lock = NULL;
 	originalThreadTCB->holding_locks = NULL;
+	originalThreadTCB -> joinedThreads = NULL;
 	
 	LL_append(&(scheduler->all_threads), (void*)originalThreadTCB);
 	scheduler->threadCount ++;
@@ -290,34 +291,122 @@ void my_scheduler_initialize(){
 	/*Schedule the original thread*/	
 	DEBUG_PRINT(("clock_t %d \n", (double)originalThreadTCB->createdTime));
 	
+	scheduler->runningThreadTCB = originalThreadTCB;
 	scheduler-> alarmClock-> it_interval.tv_sec = 0;
 	scheduler-> alarmClock-> it_value.tv_sec=2;
 	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
 	setcontext(((tcb_t*)(scheduler->runningQueues[0]->data))->context);
 	//swapcontext(schedulerContext, newContext);
-	while(1){
-		
-	}
 };
 
+/*Scheduler helper methods*/
+
+//Find next thread in line
 
 //NEWTHREAD
-void my_scheduler_newThread(my_pthread_t * thread,void *(*function)(void*), void * arg){
+void my_scheduler_newThread(){
+	/*Build TCB for new thread*/
+	clock_t tempClock = clock();
 	
-	DEBUG_PRINT(("Scheduling new thread Thread %d. \n", *((my_pthread_t *)arg)));
-	DEBUG_PRINT(("Flag1\n"));
-	setcontext(newThreadContext);
+	//Save running context
+	memcpy (scheduler->runningThreadTCB->context, runningContext,sizeof(ucontext_t));	
+	
+	DEBUG_PRINT(("Scheduling new thread Thread %d. \n", *thread_handle));
+	tcb_t * newThreadTCB = (tcb_t *)malloc(sizeof(tcb_t));
+	newThreadTCB-> context = newThreadContext;
+	newThreadTCB-> TID =  *thread_handle;		
+	newThreadTCB->createdTime = tempClock;
+	newThreadTCB->totalCPUTime = 0;
+	newThreadTCB->startTime = tempClock;
+	newThreadTCB->stopTime = tempClock;
+	newThreadTCB->priority = 0;
+	newThreadTCB->waiting_lock = NULL;
+	newThreadTCB->holding_locks = NULL;
+	newThreadTCB -> joinedThreads = NULL;
+	
+	//Queueing
+	LL_append(&(scheduler->all_threads), (void*)newThreadTCB);
+	scheduler->threadCount ++;
+	LL_push(&(scheduler->runningQueues[0]), (void*)newThreadTCB);		
+	
+	//Set timer and go
+	scheduler->runningThreadTCB = newThreadTCB;
+	scheduler-> alarmClock-> it_interval.tv_sec = 0;
+	scheduler-> alarmClock-> it_interval.tv_usec = 0;
+	scheduler-> alarmClock-> it_value.tv_usec=BASE_INTERVAL;
+	scheduler-> alarmClock-> it_value.tv_sec=0;
+	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);
+	setcontext(((tcb_t*)(scheduler->runningQueues[0]->data))->context);
 }
-void my_scheduler_endThread(my_pthread_t * thread){
-	DEBUG_PRINT(("End Thread %d. \n", thread));
-	while(1){
-		
+void my_scheduler_endThread(){
+	DEBUG_PRINT(("End Thread %d. \n", scheduler->runningThreadTCB->TID));
+	int currentPriority = scheduler->runningThreadTCB->priority;	
+	
+	//Remove from queues.
+	DEBUG_PRINT(("Thread Priority %d. \n",currentPriority ));
+	node_t * temp = scheduler->runningQueues[currentPriority];
+	scheduler->runningQueues[currentPriority] =temp->next;
+	LL_remove(&(scheduler->all_threads), scheduler->runningThreadTCB);
+	scheduler->threadCount --;
+	
+	
+	//Free up memory
+	free(((tcb_t *)(temp->data))->context);
+	free(temp->data);
+	free(temp);	
+	
+	
+	
+	//Next thread
+	if(scheduler->runningQueues[currentPriority]==NULL){
+		while(scheduler->runningQueues[currentPriority]==NULL){
+			currentPriority ++;
+			if(currentPriority == LEVELS_NUM) currentPriority = 0;
+		}		
 	}
+	
+	scheduler->runningThreadTCB = (tcb_t*)(scheduler->runningQueues[currentPriority]->data);
+	DEBUG_PRINT(("New Thread TID %d. \n",currentPriority ));
+	scheduler-> alarmClock-> it_interval.tv_sec = 0;
+	scheduler-> alarmClock-> it_interval.tv_usec = 0;
+	scheduler-> alarmClock-> it_value.tv_usec=BASE_INTERVAL+BASE_INTERVAL*currentPriority;
+	scheduler-> alarmClock-> it_value.tv_sec=0;
+	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
+	setcontext(((tcb_t*)(scheduler->runningQueues[currentPriority]->data))->context);
+	
 };
 
+//SCHEDULE
+void my_scheduler_schedule(){
+	DEBUG_PRINT(("End Thread %d. \n"));
+	DEBUG_PRINT(("Thread Count %d. \n", scheduler->threadCount));
+	memcpy (scheduler->runningThreadTCB->context, runningContext,sizeof(ucontext_t));	
+	while(1){
+		
+		
+	}
+	int currentPriority = scheduler->runningThreadTCB->priority;
+	scheduler->runningThreadTCB->priority ++;
+	if( scheduler->runningThreadTCB->priority==LEVELS_NUM){
+		scheduler->runningThreadTCB->priority = LEVELS_NUM-1;
+	}
+	
+	node_t * temp = scheduler->runningQueues[currentPriority];
+	scheduler->runningQueues[currentPriority] =temp->next; 
+	free(temp);
+	
+	LL_append(&(scheduler->runningQueues[scheduler->runningThreadTCB->priority]), scheduler->runningThreadTCB);
+	
+	scheduler->runningThreadTCB = (tcb_t*)(scheduler->runningQueues[currentPriority]->data);
+	scheduler-> alarmClock-> it_interval.tv_sec = 0;
+	scheduler-> alarmClock-> it_interval.tv_usec = 0;
+	scheduler-> alarmClock-> it_value.tv_usec=BASE_INTERVAL+BASE_INTERVAL*currentPriority;
+	scheduler-> alarmClock-> it_value.tv_sec=0;
+	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
+	setcontext(((tcb_t*)(scheduler->runningQueues[currentPriority]->data))->context);
+};
 
 void my_scheduler_maintainence(){};
-void my_scheduler_schedule(){};
 void my_scheduler_newLock(){};
 void my_scheduler_join(){};
 void my_scheduler_exit(){};
