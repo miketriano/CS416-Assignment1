@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <ucontext.h>
 #include <time.h>
+#include <string.h>
 
 //Using enum to simplify thread status, RUNNING = 0, etc, etc.
 enum thread_status {RUNNING, WAITING, TERMINATED};

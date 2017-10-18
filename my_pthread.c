@@ -42,7 +42,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 		makecontext(schedulerContext, (void*)&my_scheduler_initialize, 0, arg);
 		
 		//Immediate yields to scheduler.
-		swapcontext(tempContext,schedulerContext);
+		swapcontext(tempContext,schedulerContext);		
+		DEBUG_PRINT(("Initialized.\n"));	
 	}
 	DEBUG_PRINT(("Create thread Called. %p\n", thread));	
 	
@@ -113,7 +114,7 @@ int my_scheduler_initialize(){
 	/*Prepare timer and signal handlers*/
 	struct itimerval * clock = (struct itimerval *) calloc(1, sizeof(struct itimerval));
 	clock-> it_interval.tv_sec = 0;
-	clock-> it_value.tv_usec=100;
+	clock-> it_value.tv_sec=2;
 	
 	/*Set context to scheduler*/
 	void sighandler (int sig){
@@ -144,8 +145,11 @@ int my_scheduler_initialize(){
 	/*Wrap oringal context into a thread*/
 	node_t * originalThreadTCB = (node_t *)malloc(sizeof(node_t));
 	originalThreadTCB->data = (void*) malloc(sizeof(tcb_t));
-	
-	 ((tcb_t *)originalThreadTCB->data)-> TID = 1;		
+	//ucontext_t * newContext = (ucontext_t *) malloc(sizeof(ucontext_t)) ;
+	//memcpy (newContext, tempContext,sizeof(ucontext_t));
+	((tcb_t *)originalThreadTCB->data)-> context = tempContext;
+	//tempContext = NULL;
+	((tcb_t *)originalThreadTCB->data)-> TID = 1;		
 	((tcb_t *)originalThreadTCB->data)->createdTime = tempClock;
 	((tcb_t *)originalThreadTCB->data)->totalCPUTime = 0;
 	((tcb_t *)originalThreadTCB->data)->startTime = tempClock;
@@ -155,20 +159,18 @@ int my_scheduler_initialize(){
 	((tcb_t *)originalThreadTCB->data)->holding_locks = NULL;
 	
 	LL_append(&all_threads, (void*)originalThreadTCB);
-	LL_pop(&all_threads, (void*)originalThreadTCB);
-	/*Schedule the original thread*/
+	threadCount ++;
+	LL_append(&runningQueues[0], (void*)originalThreadTCB);
 	
-	
+	/*Schedule the original thread*/	
 	DEBUG_PRINT(("clock_t %d \n", (double)((tcb_t *)originalThreadTCB->data)->createdTime));
 	sigaction(SIGVTALRM, &act, &oact);
 	setitimer(ITIMER_VIRTUAL, clock, NULL);	
-	DEBUG_PRINT(("DEBUG version 9. \n"));
+	DEBUG_PRINT(("DEBUG version 2. \n"));
+	//DEBUG_PRINT(("Context address %p \n",((tcb_t*)runningQueues[0]->data)->context));	
+	swapcontext(schedulerContext,tempContext);	
 	
-	while(1){
-		
-	}
-	
-
+	/*infinite loop to wait for SIGVTALRM*/
 };
 
 /* typedef struct Node {
