@@ -67,8 +67,21 @@ struct Mutex{
 	tcb_t * owner;
 	node_t * wait_list;
 };
+typedef struct Params{
+	my_pthread_t * thread;
+	void * function_ptr;
+	void* arg;
+} params_t;
 
-
+typedef struct Scheduler{
+	node_t ** runningQueues;
+	node_t * waitingQueue;
+	node_t * all_threads;
+	int threadCount;
+	clock_t lastMaintainence;
+	struct itimerval * alarmClock;
+	struct sigaction act, oact;
+}my_scheduler_t;
 /* Function Declarations: */
 
 
