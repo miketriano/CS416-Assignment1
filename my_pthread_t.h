@@ -9,6 +9,7 @@
 #define tcb_t_H
 
 #define _GNU_SOURCE
+#define USE_MY_PTHREAD 1
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -25,9 +26,12 @@
 //Using enum to simplify thread status, RUNNING = 0, etc, etc.
 enum thread_status {RUNNING, WAITING, TERMINATED};
 
-typedef uint my_pthread_t;
-typedef struct Mutex my_pthread_mutex_t;
+//For convinience of coding and debug, my_pthread_t and my_pthread_mutex_t is their memory address. 
+//Since it's not an actual OS, we are not concerned about memory secuirty, everything is in user space anyway.
+typedef void* my_pthread_t;
+typedef void* my_pthread_mutex_t;
 typedef struct ThreadControlBlock tcb_t;
+typedef struct Mutex Mutex;
 //For convenience, tcb_t IS the threadControlBlock, since we are not concerned about memory security. 
 //Adding tcb_t's numerical system requires ID distribution and addtional search functionality on linked list.
 //Node for Linked List(LL)
@@ -80,6 +84,8 @@ typedef struct Scheduler{
 	node_t * all_threads;
 	int threadCount;
 	
+	node_t * all_locks;
+	
 	tcb_t * runningThreadTCB;
 	clock_t lastMaintainence;
 	struct itimerval * alarmClock;
@@ -99,15 +105,22 @@ void my_scheduler_newThread();
 void my_scheduler_endThread();
 void my_scheduler_maintainence();
 void my_scheduler_schedule();
-void my_scheduler_newLock();
+void my_scheduler_initLock();
 void my_scheduler_join();
-void my_scheduler_exit();
 void my_scheduler_destoryLock();
 void my_scheduler_yield();
+//put self to waiting queue. Used lock and join function.
+void my_scheduler_dequeue();
+void my_scheduler_requeue();
 
 /*Scheduler helper functions*/
 void requeue (tcb_t * ThreadTCB);
 void dequeue(tcb_t * ThreadTCB);
+void scheduleNext();
+void initKernalContext(ucontext_t* context);
+void printAllThreads();
+void printAllThreadsForLock(my_pthread_mutex_t* mutex);
+void requeueThread();
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg);
@@ -136,7 +149,21 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex);
 
 /*Linked List(LL) Functions*/
 void LL_push(node_t ** listHead, void * new_data);
-int LL_pop(node_t ** listHead, void * returned_data);
+int LL_pop(node_t ** listHead, void ** returned_data);
 void LL_append(node_t ** listHead, void * new_data);
 int LL_remove(node_t ** listHead, void * target);
+
+#ifdef USE_MY_PTHREAD
+#define pthread_t my_pthread_t
+#define pthread_mutex_t my_pthread_mutex_t
+#define pthread_create my_pthread_create
+#define pthread_exit my_pthread_exit
+#define pthread_join my_pthread_join
+#define pthread_mutex_init my_pthread_mutex_init
+#define pthread_mutex_lock my_pthread_mutex_lock
+#define pthread_mutex_unlock my_pthread_mutex_unlock
+#define pthread_mutex_destroy my_pthread_mutex_destroy
+#endif
+
+
 #endif
