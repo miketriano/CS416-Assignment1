@@ -7,7 +7,7 @@
 // iLab Server: composite.cs.rutgers.edu
 
 
-#define DEBUG 1
+//#define DEBUG 1
 #ifdef DEBUG
 # define DEBUG_PRINT(x) printf x
 #else
@@ -17,7 +17,7 @@
 
 #define STACK_SIZE 64000
 #define LEVELS_NUM 20
-#define BASE_INTERVAL 2500 //2.5ms
+#define BASE_INTERVAL 25000 //2.5ms
 #define MAINTAINENCE_INTERVAL 1000*BASE_INTERVAL
 
 ucontext_t * schedulerContext;
@@ -98,7 +98,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 int my_pthread_yield() {
 	sigprocmask(SIG_BLOCK, sigvtalrm_set, NULL);
 	printf("Yield called\n");
-	swapcontext(runningContext,YIELD);
+	//swapcontext(runningContext,YIELD);
 	sigprocmask(SIG_UNBLOCK, sigvtalrm_set, NULL);
 	return 0;
 };
@@ -408,6 +408,7 @@ void my_scheduler_newThread(){
 	scheduleNext();	
 }
 void my_scheduler_endThread(){
+	printAllThreads();
 	DEBUG_endThread_count ++;
 	DEBUG_PRINT(("End Thread %p. \n", scheduler->runningThreadTCB->TID));
 	DEBUG_PRINT(("End Thread Count %d. \n", DEBUG_endThread_count));
@@ -544,15 +545,12 @@ void my_scheduler_join(){
 void my_scheduler_destoryLock(){};
 void my_scheduler_yield(){
 	memcpy (scheduler->runningThreadTCB->context, runningContext,sizeof(ucontext_t));	
-	
 	int priority = scheduler->runningThreadTCB->priority;
 	
-	//Free node memory
-	node_t * temp = scheduler->runningQueues[priority];
-	scheduler->runningQueues[priority] =temp->next; 
-	free(temp);
+	
+	LL_remove(&(scheduler->runningQueues[priority]),scheduler->runningThreadTCB) ;
 	LL_append(&(scheduler->runningQueues[priority]), scheduler->runningThreadTCB);
-	scheduleNext();
+	scheduleNext(); 
 };
 void my_scheduler_requeue(){};
 /* typedef struct Node {
@@ -567,31 +565,31 @@ void scheduleNext(){
 		while(scheduler->runningQueues[priority]==NULL){
 			priority ++;
 			if(priority == LEVELS_NUM){
-				DEBUG_PRINT(("ERROR: No Running thread!! \n"));
+				//DEBUG_PRINT(("ERROR: No Running thread!! \n"));
 				int count = 0;
 				node_t* current = scheduler->waitingQueue;
 				while(current!=NULL){
-					DEBUG_PRINT(("Thread::  %p\n",((tcb_t *)(current->data))->TID));
+					//DEBUG_PRINT(("Thread in Waiting: %p:%p\n",((tcb_t *)(current->data))->TID,((tcb_t *)(current->data))));
 					current = current->next;
 					count++;					
 				}
-				DEBUG_PRINT(("Waiting Thread Count:  %d\n",count));
-				while(1){
-					
-				}
+				//DEBUG_PRINT(("Waiting Thread Count:  %d\n",count));
+				while(1){}
 			}
 		}		
 	}
+	
 	//Change current running thread, set timer and swap
 	scheduler->runningThreadTCB = (tcb_t*)(scheduler->runningQueues[priority]->data);
-	DEBUG_PRINT(("Next Scheduled Thread TID %p:%p, priority %d. \n",scheduler->runningThreadTCB->TID,scheduler->runningThreadTCB,scheduler->runningThreadTCB->priority ));
+	//DEBUG_PRINT(("Next Scheduled Thread TID %p:%p, priority %d. \n",scheduler->runningThreadTCB->TID,scheduler->runningThreadTCB,scheduler->runningThreadTCB->priority ));
 	scheduler-> alarmClock-> it_interval.tv_sec = 0;
 	scheduler-> alarmClock-> it_interval.tv_usec = 0;
 	scheduler-> alarmClock-> it_value.tv_usec=BASE_INTERVAL+BASE_INTERVAL*priority;
 	scheduler-> alarmClock-> it_value.tv_sec=0;
 	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
 	//DEBUG_PRINT(("Next Scheduled Thread TID %p, priority %d. \n",scheduler->runningThreadTCB->TID,scheduler->runningThreadTCB->priority ));
-	setcontext(((tcb_t*)(scheduler->runningQueues[priority]->data))->context);
+	//setcontext(((tcb_t*)(((tcb_t*)(scheduler->runningQueues[priority]->data))->TID))->context);
+	setcontext(((((tcb_t*)(scheduler->runningQueues[priority]->data))))->context);
 };
 
 
@@ -616,11 +614,11 @@ void printAllThreads(){
 	int count = 0;
 	node_t * current = scheduler->all_threads;
 	while(current!=NULL){
-		DEBUG_PRINT(("Thread::  %p\n",((tcb_t *)(current->data))));
+		//DEBUG_PRINT(("Thread::  %p:%p\n",((tcb_t *)(current->data)),((tcb_t *)(current->data))->TID));
 		current = current->next;
 		count++;					
 	}
-	DEBUG_PRINT(("All Thread Count:  %d\n",count));
+	//DEBUG_PRINT(("All Thread Count:  %d\n",count));
 }
 
 
