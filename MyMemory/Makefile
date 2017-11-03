@@ -9,7 +9,7 @@ Target: my_memory.a
 all:: memoryTest
 
 memoryTest:
-	$(CC) $(CFLAGS2) -o memoryTest memoryTest.c -L./ -lmy_memory
+	gcc -g -w -std=gnu99 -o memoryTest memoryTest.c -L./ -lmy_memory
 
 my_memory.a: my_memory.o
 	$(AR) libmy_memory.a my_memory.o
