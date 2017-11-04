@@ -1,3 +1,7 @@
+/**
+ * Test cases for my_memory
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -27,17 +31,12 @@ int main() {
     // Free test struct - good
     free(t);
 
-    // Malloc a bunch of test struct - good
+    // Malloc, protect, unprotect, write
     test * t2 = malloc(sizeof(test));
-    t2->num1 = 100;
-
-    test * t3 = malloc(sizeof(test));
-    t3->num1 = 100;
-
-    free(t2);
-
-    test * t4 = malloc(sizeof(test));
-    t4->num1 = 100;
+    printf("t2 address is %p\n", t2);
+    protect_memory(t2);
+    unprotect_memory(t2);
+    t2->num1 = 99;
 
     return 0;
 }

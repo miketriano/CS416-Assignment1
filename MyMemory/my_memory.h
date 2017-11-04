@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/mman.h>
+#include <string.h>
+#include <signal.h>
 
 // Memory request called from malloc/free
 #define THREADREQ 0
@@ -36,3 +40,8 @@ void mydeallocate(void* x, char* file, int line, int req);
 void initialize();
 void * get_free_memory();
 void print_num_blocks();
+
+void protect_memory(void * buffer);
+void unprotect_memory(void * buffer);
+
+void create_signal_handler();
