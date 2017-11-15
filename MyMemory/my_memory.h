@@ -26,7 +26,7 @@
 #define shalloc(x) mysharedallocate(x, __FILE__, __LINE__, THREADREQ)
 
 typedef struct MemoryBlock memblock;
-typedef struct SwapFile swapfile;
+typedef struct SwapFileMeta swapfilemeta;
 
 struct MemoryBlock {
 	memblock * head;
@@ -35,18 +35,22 @@ struct MemoryBlock {
 
     int size;
 
-    // 1 if free, if allocated
+    // 1 if free, 0 if allocated
     int free;
 
     // Thread id
     int tid;
 };
 
-struct SwapFile {
+struct SwapFileMeta {
 	int tid;
 	FILE * fp;
+	memblock * head;
+	int size;
+	// 1 if free, 0 if allocated
+	int free;
 	
-	swapfile * next;
+	swapfilemeta * next;
 };
 
 void * myallocate(size_t x, char * file, int line, int req);
@@ -54,8 +58,7 @@ void mydeallocate(void * x, char * file, int line, int req);
 void * mysharedallocate(size_t x, char * file, int line, int req);
 
 void initialize();
-void * get_free_memory();
-void print_num_blocks();
+void * get_free_memory(size_t size);
 
 void protect_thread();
 void unprotect_thread();
@@ -68,6 +71,9 @@ void create_signal_handler();
 void set_current_thread();
 
 void create_swap_file();
-int evict_page();
+int evict_page(size_t size);
+void swap_pages(int tid);
 void write_swap_file();
 void read_swap_file();
+
+size_t roundup(size_t size);

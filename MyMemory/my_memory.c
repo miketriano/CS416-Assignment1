@@ -7,13 +7,10 @@ int initialized = 0;
 // Ptr for start of memory
 memblock * memory_head;
 
-swapfile * swap_file_head;
+swapfilemeta * swap_file_meta_head;
 
-// Number of allocated pages
-int num_pages = 0;
-
-// Max number of allocated pages
-int max_pages = 0;
+// Amount of memory allocated
+unsigned int allocated_memory = 0;
 
 int current_thread = -1;
 
@@ -34,20 +31,20 @@ void * myallocate(size_t size, char * file, int line, int req) {
     }
 
     // Check if requested size is too large
-    if (size > SYSTEM_PAGE_SIZE - sizeof(memblock)) {
-        DEBUG_PRINT(("Requested size is greater than system's page size, returning null\n"));
-        return NULL;
-    }
+//    if (size > SYSTEM_PAGE_SIZE - sizeof(memblock)) {
+//        DEBUG_PRINT(("Requested size is greater than system's page size, returning null\n"));
+//        return NULL;
+//    }
 
     // Check if any free pages
-    if (num_pages == max_pages) {
-		if (!evict_page()) {
+    if ((allocated_memory + size + sizeof(memblock)) > TOTAL_MEMORY) {
+		if (!evict_page(size)) {
 			DEBUG_PRINT(("All memory pages are full, returning null\n"));
 			return NULL;
 		}
     }
 
-    return get_free_memory();
+	return get_free_memory(size);
 }
 
 /**
@@ -60,7 +57,7 @@ void mydeallocate(void * x, char * file, int line, int req) {
     block = block - sizeof(memblock);
     block->free = 1;
 
-    num_pages--;
+    allocated_memory = allocated_memory - (block->size + sizeof(memblock));
 }
 
 void * mysharedallocate(size_t x, char * file, int line, int req) {
@@ -72,8 +69,6 @@ void * mysharedallocate(size_t x, char * file, int line, int req) {
  */
 void initialize() {
 	DEBUG_PRINT(("initialize called\n"));
-    max_pages = TOTAL_MEMORY / SYSTEM_PAGE_SIZE;
-    DEBUG_PRINT(("Max number of pages is %d\n", max_pages));
 	memory_head = (memblock *) sbrk(SYSTEM_PAGE_SIZE);
     DEBUG_PRINT(("Memory head address is %p\n", memory_head));
     memory_head->head = memory_head;
@@ -102,7 +97,6 @@ static void handler(int sig, siginfo_t *si, void *unused) {
 		DEBUG_PRINT(("Thread %d tried to access thread's %d memory! Exiting.\n", offset->tid, current_thread));
 		exit(0);
 	}
-	
 	// Something else went wrong
 	exit(0);
 }
@@ -125,10 +119,11 @@ void create_signal_handler() {
 /**
  * Find a free memory page and return it
  */
-void * get_free_memory() {
-    if (memory_head->free) {
+void * get_free_memory(size_t size) {
+    if (memory_head->free && memory_head->size >= size) {
 	    DEBUG_PRINT(("Using memory head\n"));
 	    memory_head->free = 0;
+        allocated_memory = allocated_memory + memory_head->size + sizeof(memblock);
 	    memory_head->tid = current_thread;
         return memory_head->start;
     }
@@ -136,25 +131,26 @@ void * get_free_memory() {
     memblock * block = memory_head;
     while (block->next != NULL) {
 	    block = block->next;
-    	    if (block->free) {
+    	    if (block->free && block->size >= size) {
                 DEBUG_PRINT(("Using a existing free block\n"));
                 block->free = 0;
+                allocated_memory = allocated_memory + block->size + sizeof(memblock);
                 block->tid = current_thread;
                 return block->start;
 	        }
     }
 
     DEBUG_PRINT(("Creating a new block\n"));
-    block->next = (memblock *) sbrk(SYSTEM_PAGE_SIZE);
+    size = roundup(size);
+    block->next = (memblock *) sbrk(size);
     block = block->next;
     block->head = block;
     block->start = block + sizeof(memblock);
     block->next = NULL;
-    block->size = SYSTEM_PAGE_SIZE - sizeof(memblock);
+    block->size = size - sizeof(memblock);
     block->free = 0;
+    allocated_memory = allocated_memory + block->size + sizeof(memblock);
     block->tid = current_thread;
-
-    num_pages++;
 
     return block->start;
 }
@@ -171,6 +167,7 @@ void set_current_thread(int tid) {
     if (current_thread != -1) {
 		//protect_thread(current_thread);
 		//unprotect_thread(tid);
+        swap_pages(tid);
 	}
 	
 	current_thread = tid;
@@ -228,31 +225,78 @@ void unprotect_memory(void * buffer) {
  */
 void create_swap_file() {
 	DEBUG_PRINT(("create_swap_file called\n"));
-	int size = 16 * 1024 * 1024 - 1; //16MB
+	swap_file_meta_head = (swapfilemeta *) sbrk(sizeof(swapfilemeta));
+	swap_file_meta_head->free = 1;
+	swap_file_meta_head->next = NULL;
+	int size = SWAP_FILE_MAX_SIZE - 1; //16MB
 	FILE *fp = fopen("swapfile", "w");
 	fseek(fp, size, SEEK_SET);
 	fputc('\0', fp);
 	fclose(fp);
+
+    swap_file_meta_head = sbrk(sizeof(swapfilemeta));
+    swap_file_meta_head->next == NULL;
 }
 
 /**
  * Finds page to write to swap file and free
  */
-int evict_page() {
+int evict_page(size_t size) {
 	memblock * block = memory_head;
 	while (block != NULL) {
-		if (block->tid != current_thread) {
-			FILE * fp = fopen("swapfile", "r");
+		if (block->tid != current_thread && block->size >= size) {
+			FILE * fp = fopen("swapfile", "w");
+
+            // Get the tail of the swap file meta
+            swapfilemeta * swap_file_meta = swap_file_meta_head;
+            while (swap_file_meta->next != NULL) {
+                swap_file_meta = swap_file_meta->next;
+            }
+
+            swap_file_meta->next = (swapfilemeta *) sbrk(sizeof(swap_file_meta));
+            swap_file_meta = swap_file_meta->next;
+            swap_file_meta->fp = fp;
+            swap_file_meta->head = block;
+            swap_file_meta->tid = block->tid;
+            swap_file_meta->next = NULL;
+            swap_file_meta->size = block->size + sizeof(memblock);
+            swap_file_meta->free = 1;
 			size_t written = 0;
-			while (written < SYSTEM_PAGE_SIZE) {
+            DEBUG_PRINT(("Writing block to swap file\n"));
+			while (written < block->size + sizeof(memblock)) {
 				written = written + fwrite(block, 1, SYSTEM_PAGE_SIZE, fp);
 			}
+            fclose(fp);
 			block->free = 1;
-			num_pages--;
 			return 1;
 		}
+        block = block->next;
 	}
-	return 0;
+
+    return 0;
+}
+
+/**
+ * Swap all the pages in the swap file with tid into memory
+ */
+void swap_pages(int tid) {
+    DEBUG_PRINT(("swap_pages called on thread %d\n", tid));
+    swapfilemeta * swap_file_meta = swap_file_meta_head;
+    while (swap_file_meta != NULL) {
+        // Swap the page
+        if (swap_file_meta->tid == tid) {
+            DEBUG_PRINT(("Block in swap file of size %zu belongs to thread %d\n", swap_file_meta->size, tid));
+            void * ptr = sbrk(swap_file_meta->size);
+            size_t size = SYSTEM_PAGE_SIZE;
+            size_t nmemb = swap_file_meta->size / SYSTEM_PAGE_SIZE;
+            FILE * fp = fopen("swapfile", "w");
+            fp = swap_file_meta->fp;
+            size_t read = fread(ptr, size, nmemb, swap_file_meta->fp);
+            DEBUG_PRINT(("Read %zu bytes from swap from for thread %d\n", read, tid));
+        }
+
+        swap_file_meta = swap_file_meta->next;
+    }
 }
 
 void write_swap_file() {
@@ -284,12 +328,15 @@ void read_swap_file() {
 	}	
 }
 
-void print_num_blocks() {
-	int count = 0;
-	memblock * block = memory_head;
-	while (block != NULL) {
-		count++;
-		block = block->next;	
-	}
-	DEBUG_PRINT(("Num blocks %d\n", count));
+/**
+ * Round up to the nearest page size multiple
+ * eg: 7000 becomes 8192, 3000 becomes 4096
+ */
+size_t roundup(size_t size) {
+    size = size + sizeof(memblock);
+    size_t new = (size / SYSTEM_PAGE_SIZE) * SYSTEM_PAGE_SIZE;
+    if (size % SYSTEM_PAGE_SIZE != 0) {
+        new = new + SYSTEM_PAGE_SIZE;
+    }
+    return new;
 }
