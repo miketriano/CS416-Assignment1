@@ -7,6 +7,9 @@ int initialized = 0;
 // Ptr for start of memory
 memblock * memory_head;
 
+// Ptr for start of shared memory
+memblock * shared_head;
+
 swapfilemeta * swap_file_meta_head;
 
 // Amount of memory allocated
@@ -29,12 +32,6 @@ void * myallocate(size_t size, char * file, int line, int req) {
         DEBUG_PRINT(("Requested size is 0, returning null\n"));
         return NULL;
     }
-
-    // Check if requested size is too large
-//    if (size > SYSTEM_PAGE_SIZE - sizeof(memblock)) {
-//        DEBUG_PRINT(("Requested size is greater than system's page size, returning null\n"));
-//        return NULL;
-//    }
 
     // Check if any free pages
     if ((allocated_memory + size + sizeof(memblock)) > TOTAL_MEMORY) {
@@ -68,15 +65,6 @@ void * mysharedallocate(size_t x, char * file, int line, int req) {
  * Initialize the first memory page
  */
 void initialize() {
-	DEBUG_PRINT(("initialize called\n"));
-	memory_head = (memblock *) sbrk(SYSTEM_PAGE_SIZE);
-    DEBUG_PRINT(("Memory head address is %p\n", memory_head));
-    memory_head->head = memory_head;
-	memory_head->start = memory_head + sizeof(memblock);
-	memory_head->next = NULL;
-	memory_head->size = SYSTEM_PAGE_SIZE - sizeof(memblock);
-	memory_head->free = 1;
-	memory_head->tid = -1;
 
     create_signal_handler();
     
@@ -91,14 +79,13 @@ void initialize() {
 static void handler(int sig, siginfo_t *si, void *unused) {
 	memblock * offset = ((memblock *) si->si_addr) - sizeof(memblock);
     printf("Got SIGSEGV at address: 0x%lx from thread %d\n",(long) si->si_addr, offset->tid);
-    
     // Check if thread was accessing another thread's memory
     if (offset->tid != current_thread) {
 		DEBUG_PRINT(("Thread %d tried to access thread's %d memory! Exiting.\n", offset->tid, current_thread));
 		exit(0);
+	} else {
+		exit(0);
 	}
-	// Something else went wrong
-	exit(0);
 }
 
 /**
@@ -117,14 +104,30 @@ void create_signal_handler() {
 }
 
 /**
- * Find a free memory page and return it
+ * Find or create a free memory page and return it
  */
 void * get_free_memory(size_t size) {
+	
+	if (memory_head == NULL) {
+		size = roundup(size);
+		DEBUG_PRINT(("Creating new block at head of size %zu\n", size));
+		memory_head = (memblock *) memalign(SYSTEM_PAGE_SIZE, size);
+		DEBUG_PRINT(("Memory head address is %p\n", memory_head));
+		memory_head->head = memory_head;
+		memory_head->start = memory_head + sizeof(memblock);
+		memory_head->next = NULL;
+		memory_head->size = size - sizeof(memblock);
+		memory_head->free = 0;
+		memory_head->tid = current_thread;
+		allocated_memory = allocated_memory + memory_head->size + sizeof(memblock);
+		return memory_head->start;
+	}
+	
     if (memory_head->free && memory_head->size >= size) {
 	    DEBUG_PRINT(("Using memory head\n"));
 	    memory_head->free = 0;
-        allocated_memory = allocated_memory + memory_head->size + sizeof(memblock);
 	    memory_head->tid = current_thread;
+	    allocated_memory = allocated_memory + memory_head->size + sizeof(memblock);
         return memory_head->start;
     }
 
@@ -134,23 +137,23 @@ void * get_free_memory(size_t size) {
     	    if (block->free && block->size >= size) {
                 DEBUG_PRINT(("Using a existing free block\n"));
                 block->free = 0;
-                allocated_memory = allocated_memory + block->size + sizeof(memblock);
                 block->tid = current_thread;
+                allocated_memory = allocated_memory + block->size + sizeof(memblock);
                 return block->start;
 	        }
     }
 
-    DEBUG_PRINT(("Creating a new block\n"));
     size = roundup(size);
-    block->next = (memblock *) sbrk(size);
+    DEBUG_PRINT(("Creating new block of size %zu\n", size));
+    block->next = (memblock *) memalign(SYSTEM_PAGE_SIZE, size);
     block = block->next;
     block->head = block;
     block->start = block + sizeof(memblock);
     block->next = NULL;
     block->size = size - sizeof(memblock);
     block->free = 0;
-    allocated_memory = allocated_memory + block->size + sizeof(memblock);
     block->tid = current_thread;
+    allocated_memory = allocated_memory + block->size + sizeof(memblock);
 
     return block->start;
 }
@@ -181,7 +184,7 @@ void protect_thread(int tid) {
 	memblock * block = memory_head;
 	while (block != NULL) {
 		if (block->tid == tid) {
-			mprotect(block, SYSTEM_PAGE_SIZE, PROT_READ);
+			mprotect(block, block->size + sizeof(memblock), PROT_READ);
 		}
 		block = block->next;
 	}
@@ -195,7 +198,7 @@ void unprotect_thread(int tid) {
 	memblock * block = memory_head;
 	while (block != NULL) {
 		if (block->tid == tid) {
-			mprotect(block, SYSTEM_PAGE_SIZE, PROT_READ | PROT_WRITE);
+			mprotect(block, block->size + sizeof(memblock), PROT_READ | PROT_WRITE);
 		}
 		block = block->next;
 	}
@@ -252,20 +255,19 @@ int evict_page(size_t size) {
             while (swap_file_meta->next != NULL) {
                 swap_file_meta = swap_file_meta->next;
             }
-
+			int offset = fseek(fp, 0, SEEK_END);
+			DEBUG_PRINT(("Swapfile size is %d\n", offset));
             swap_file_meta->next = (swapfilemeta *) sbrk(sizeof(swap_file_meta));
             swap_file_meta = swap_file_meta->next;
-            swap_file_meta->fp = fp;
+            swap_file_meta->offset = offset;
             swap_file_meta->head = block;
             swap_file_meta->tid = block->tid;
             swap_file_meta->next = NULL;
             swap_file_meta->size = block->size + sizeof(memblock);
             swap_file_meta->free = 1;
 			size_t written = 0;
-            DEBUG_PRINT(("Writing block to swap file\n"));
-			while (written < block->size + sizeof(memblock)) {
-				written = written + fwrite(block, 1, SYSTEM_PAGE_SIZE, fp);
-			}
+			written = fwrite(block, 1, swap_file_meta->size, fp);
+			DEBUG_PRINT(("Wrote %zu bytes to swap file\n", written));
             fclose(fp);
 			block->free = 1;
 			return 1;
@@ -286,13 +288,26 @@ void swap_pages(int tid) {
         // Swap the page
         if (swap_file_meta->tid == tid) {
             DEBUG_PRINT(("Block in swap file of size %zu belongs to thread %d\n", swap_file_meta->size, tid));
-            void * ptr = sbrk(swap_file_meta->size);
-            size_t size = SYSTEM_PAGE_SIZE;
-            size_t nmemb = swap_file_meta->size / SYSTEM_PAGE_SIZE;
-            FILE * fp = fopen("swapfile", "w");
-            fp = swap_file_meta->fp;
-            size_t read = fread(ptr, size, nmemb, swap_file_meta->fp);
+            size_t size = swap_file_meta->size;
+            void * ptr = memalign(SYSTEM_PAGE_SIZE, size);
+
+            FILE * fp = fopen("swapfile", "r");
+
+            fseek(fp, swap_file_meta->offset, SEEK_SET);
+            size_t read = fread(ptr, 1, size, fp);
+
             DEBUG_PRINT(("Read %zu bytes from swap from for thread %d\n", read, tid));
+            fclose(fp);
+
+            fp = fopen("swapfile", "w");
+            fseek(fp, swap_file_meta->offset, SEEK_SET);
+            fwrite(swap_file_meta->head, 1, size, fp);
+            swap_file_meta->tid = swap_file_meta->head->tid;
+            fclose(fp);
+
+            DEBUG_PRINT(("Copying %zu bytes to a block of size %d\n", size, roundup(swap_file_meta->head->size)));
+            memcpy(swap_file_meta->head, ptr, size);
+            swap_file_meta->size = size;
         }
 
         swap_file_meta = swap_file_meta->next;

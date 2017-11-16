@@ -7,6 +7,8 @@
 
 #include "my_memory.h"
 
+#define MB 1 * 1024 * 1024
+
 typedef struct Test {
 	int num1;
 	int num2;
@@ -21,20 +23,13 @@ int main() {
 
 	set_current_thread(1);
 
-    // Malloc 0 bytes - error
-    malloc(0);
-
-    // Malloc > system's page size + meta data size - good
-
-    // Malloc test struct and assign values - good
-    test * t = malloc(sizeof(test));
-    t->num1 = 5;
-    t->num2 = 10;
-    t->num3 = 15;
-
-
-    malloc(4 * 1024 * 1024);
-    set_current_thread(2);
-    malloc(4 * 1024 * 1024);
-    set_current_thread(1);
+	test * ptr = malloc(4 * MB);
+	ptr->num1 = 10;
+	set_current_thread(2);
+	test * ptr2 = malloc(4 * MB);
+	ptr2->num1 = 5;
+	set_current_thread(1);
+	printf("num1=%d\n", ptr->num1);
+		set_current_thread(2);
+	printf("num1=%d\n", ptr->num1);
 }

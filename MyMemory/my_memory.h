@@ -5,6 +5,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <signal.h>
+#include <malloc.h>
 
 // Memory request called from malloc/free
 #define THREADREQ 0
@@ -33,7 +34,7 @@ struct MemoryBlock {
     void * start;
     memblock * next;
 
-    int size;
+    size_t size;
 
     // 1 if free, 0 if allocated
     int free;
@@ -44,9 +45,9 @@ struct MemoryBlock {
 
 struct SwapFileMeta {
 	int tid;
-	FILE * fp;
+	int offset;
 	memblock * head;
-	int size;
+	size_t size;
 	// 1 if free, 0 if allocated
 	int free;
 	
