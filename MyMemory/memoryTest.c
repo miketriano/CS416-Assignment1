@@ -39,10 +39,8 @@ int main() {
 
 	test * ptr4 = shalloc(100);
 	ptr4->num1 = 110;
-	
 	test * ptr5 = shalloc(100);
 	ptr5->num1 = 120;
+	shalloc(10);
 	
-	test * ptr6 = shalloc(130);
-	ptr6->num1 = 130;
 }

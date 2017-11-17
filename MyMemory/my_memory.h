@@ -16,11 +16,14 @@
 // System page size
 #define SYSTEM_PAGE_SIZE sysconf(_SC_PAGE_SIZE)
 
-// 8MB
-#define TOTAL_MEMORY 8 * 1024 * 1024
-
 // 16MB
 #define SWAP_FILE_MAX_SIZE 16 * 1024 * 1024
+
+// 3 pages
+#define SHARED_MEMORY_SIZE 3 * SYSTEM_PAGE_SIZE
+
+// 8MB - shared space
+#define TOTAL_MEMORY (8 * 1024 * 1024) - SHARED_MEMORY_SIZE
 
 #define malloc(x) myallocate(x, __FILE__, __LINE__, THREADREQ)
 #define free(x) mydeallocate(x, __FILE__, __LINE__, THREADREQ)

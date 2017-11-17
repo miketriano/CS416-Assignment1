@@ -75,11 +75,11 @@ void * mysharedallocate(size_t x, char * file, int line, int req) {
 		int i = 0;
 		for (i = 0; i < 2; i++) {
 			ptr->next = (memblock *) memalign(SYSTEM_PAGE_SIZE, SYSTEM_PAGE_SIZE);
+			ptr = ptr->next;
 			ptr->free = 1;
 			ptr->size = SYSTEM_PAGE_SIZE - sizeof(memblock);
 			ptr->head = ptr;
 			ptr->start = ptr + sizeof(memblock);
-			ptr = ptr->next;
 			ptr->next = NULL;
 		}
 		
@@ -96,7 +96,7 @@ void * mysharedallocate(size_t x, char * file, int line, int req) {
 		ptr = ptr->next;
 	}
 	
-	DEBUG_PRINT(("No free shared blocks, returning null\n"));
+	DEBUG_PRINT(("No free shared pages, returning null\n"));
 }
 
 /**
@@ -206,8 +206,8 @@ void set_current_thread(int tid) {
     
     // Protect old thread, unprotect new thread
     if (current_thread != -1) {
-		//protect_thread(current_thread);
-		//unprotect_thread(tid);
+		protect_thread(current_thread);
+		unprotect_thread(tid);
         swap_pages(tid);
 	}
 	
@@ -221,7 +221,7 @@ void protect_thread(int tid) {
 	DEBUG_PRINT(("protect_thread called on thread %d\n", tid));
 	memblock * block = memory_head;
 	while (block != NULL) {
-		if (block->tid == tid) {
+		if (block->tid == tid || tid == -1) {
 			mprotect(block, block->size + sizeof(memblock), PROT_READ);
 		}
 		block = block->next;
@@ -235,7 +235,7 @@ void unprotect_thread(int tid) {
 	DEBUG_PRINT(("unprotect_thread called on thread %d\n", tid));
 	memblock * block = memory_head;
 	while (block != NULL) {
-		if (block->tid == tid) {
+		if (block->tid == tid || tid == -1) {
 			mprotect(block, block->size + sizeof(memblock), PROT_READ | PROT_WRITE);
 		}
 		block = block->next;
@@ -248,8 +248,7 @@ void unprotect_thread(int tid) {
 void protect_memory(void * buffer) {
     DEBUG_PRINT(("protect_memory call on address %p\n", buffer));
     memblock * offset = ((memblock *) buffer) - sizeof(memblock);
-    //  Should be PROT_NONE
-    mprotect(offset, SYSTEM_PAGE_SIZE, PROT_READ);
+    mprotect(offset, roundup(offset->size), PROT_NONE);
 }
 
 /**
@@ -258,7 +257,7 @@ void protect_memory(void * buffer) {
 void unprotect_memory(void * buffer) {
     DEBUG_PRINT(("unprotect_memory call on address %p\n", buffer));
     memblock * offset = ((memblock *) buffer) - sizeof(memblock);
-    mprotect(offset, SYSTEM_PAGE_SIZE, PROT_READ | PROT_WRITE);
+    mprotect(offset, roundup(offset->size), PROT_READ | PROT_WRITE);
 }
 
 /**
@@ -307,6 +306,7 @@ int evict_page(size_t size) {
 			written = fwrite(block, 1, swap_file_meta->size, fp);
 			DEBUG_PRINT(("Wrote %zu bytes to swap file\n", written));
             fclose(fp);
+            unprotect_memory(block->start);
 			block->free = 1;
 			return 1;
 		}
@@ -344,6 +344,7 @@ void swap_pages(int tid) {
             fclose(fp);
 
             DEBUG_PRINT(("Copying %zu bytes to a block of size %d\n", size, roundup(swap_file_meta->head->size)));
+            unprotect_memory(swap_file_meta->head->start);
             memcpy(swap_file_meta->head, ptr, size);
             swap_file_meta->size = size;
         }
