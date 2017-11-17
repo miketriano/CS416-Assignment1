@@ -57,8 +57,46 @@ void mydeallocate(void * x, char * file, int line, int req) {
     allocated_memory = allocated_memory - (block->size + sizeof(memblock));
 }
 
+/**
+ * shalloc()
+ */
 void * mysharedallocate(size_t x, char * file, int line, int req) {
 	DEBUG_PRINT(("mysharedallocate called\n"));
+	
+	// Initialize shared memory space
+	if (shared_head == NULL) {
+		shared_head = (memblock *) memalign(SYSTEM_PAGE_SIZE, SYSTEM_PAGE_SIZE);
+		memblock * ptr = shared_head;
+		ptr->free = 1;
+		ptr->size = SYSTEM_PAGE_SIZE - sizeof(memblock);
+		ptr->head = ptr;
+		ptr->start = ptr + sizeof(memblock);
+		ptr->next = NULL;
+		int i = 0;
+		for (i = 0; i < 2; i++) {
+			ptr->next = (memblock *) memalign(SYSTEM_PAGE_SIZE, SYSTEM_PAGE_SIZE);
+			ptr->free = 1;
+			ptr->size = SYSTEM_PAGE_SIZE - sizeof(memblock);
+			ptr->head = ptr;
+			ptr->start = ptr + sizeof(memblock);
+			ptr = ptr->next;
+			ptr->next = NULL;
+		}
+		
+		shared_head->free = 0;
+		return shared_head->start;
+	}
+	
+	memblock * ptr = shared_head;
+	while (ptr != NULL) {
+		if (ptr->free && ptr->size >= x) {
+			ptr-> free = 0;
+			return ptr->start;
+		}
+		ptr = ptr->next;
+	}
+	
+	DEBUG_PRINT(("No free shared blocks, returning null\n"));
 }
 
 /**

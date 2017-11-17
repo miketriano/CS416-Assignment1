@@ -30,6 +30,19 @@ int main() {
 	ptr2->num1 = 5;
 	set_current_thread(1);
 	printf("num1=%d\n", ptr->num1);
-		set_current_thread(2);
+	set_current_thread(2);
 	printf("num1=%d\n", ptr->num1);
+	
+	
+	test * ptr3 = shalloc(100);
+	ptr3->num1 = 100;
+
+	test * ptr4 = shalloc(100);
+	ptr4->num1 = 110;
+	
+	test * ptr5 = shalloc(100);
+	ptr5->num1 = 120;
+	
+	test * ptr6 = shalloc(130);
+	ptr6->num1 = 130;
 }
