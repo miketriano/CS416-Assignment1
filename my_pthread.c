@@ -14,6 +14,7 @@
 # define DEBUG_PRINT(x) do {} while (0)
 #endif
 #include "my_pthread_t.h"
+#include "./MyMemory/my_memory.h"
 
 #define STACK_SIZE 64000
 #define LEVELS_NUM 20
@@ -41,7 +42,7 @@ my_pthread_mutex_t * mutex_handle;
 
 int DEBUG_endThread_count;
 
-int initialized = 0;
+int initialized2 = 0;
 volatile int FLAG =0;
 int schedulerCallLock =0;
 /* 
@@ -56,9 +57,9 @@ my_scheduler_t * scheduler;
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
 	/*Upon first time calling, initialize scheduler and pass control over to scheduler*/
 	DEBUG_PRINT(("pthread_create called.\n"));	
-	if (!initialized) {
+	if (!initialized2) {
 		DEBUG_PRINT(("Initializing Scheduler.\n"));	
-		initialized = 1;
+		initialized2 = 1;
 		/*Make of copy of itself, so that scheduler can warp it into a user thread*/
 		runningContext = malloc(sizeof(ucontext_t));
 		SCHEDULE = malloc(sizeof(ucontext_t));
@@ -124,9 +125,9 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 
 /* initial the mutex lock */
 int my_pthread_mutex_init(my_pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
-	if (!initialized) {
+	if (!initialized2) {
 		DEBUG_PRINT(("Initializing Scheduler, called from mutex_init\n"));	
-		initialized = 1;
+		initialized2 = 1;
 		/*Make of copy of itself, so that scheduler can warp it into a user thread*/
 		runningContext = malloc(sizeof(ucontext_t));
 		SCHEDULE = malloc(sizeof(ucontext_t));
@@ -256,7 +257,7 @@ void sighandler (int sig){
 }
 /*Scheduler functions*/
 void my_scheduler_initialize(){
-	DEBUG_PRINT(("Initizlied value in scheduler:  %d\n", initialized));	
+	DEBUG_PRINT(("Initizlied value in scheduler:  %d\n", initialized2));	
 	/*record time this is called*/
 	clock_t tempClock = clock();
 	/*Setting constants*/
