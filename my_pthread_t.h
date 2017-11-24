@@ -62,6 +62,7 @@ struct ThreadControlBlock {
 	node_t * holding_locks; //The locks this thread is holding, this is used for priority bump.
 	node_t * joinedThreads; //This threads waits for them to finish.
 	
+	int tid;
 };
 
 

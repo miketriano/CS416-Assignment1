@@ -72,7 +72,7 @@ void unprotect_memory(void * buffer);
 
 void create_signal_handler();
 
-void set_current_thread();
+void set_current_thread(int tid);
 
 void create_swap_file();
 int evict_page(size_t size);

@@ -21,7 +21,7 @@ int current_thread = -1;
  * malloc()
  */
 void * myallocate(size_t size, char * file, int line, int req) {
-    DEBUG_PRINT(("myallocate called from %d\n", req));
+    DEBUG_PRINT(("myallocate called from thread %d\n", current_thread));
 
     if (!initialized) {
         initialize();
@@ -200,6 +200,9 @@ void * get_free_memory(size_t size) {
  * Set the current thread
  */
 void set_current_thread(int tid) {
+	
+	DEBUG_PRINT(("Setting current thread to %d\n", tid));
+	
 	if (!initialized) {
         initialize();
     }
@@ -266,22 +269,21 @@ void unprotect_memory(void * buffer) {
 void create_swap_file() {
 	DEBUG_PRINT(("create_swap_file called\n"));
 	swap_file_meta_head = (swapfilemeta *) sbrk(sizeof(swapfilemeta));
-	swap_file_meta_head->free = 1;
+	swap_file_meta_head->free = 0;
 	swap_file_meta_head->next = NULL;
+	swap_file_meta_head->tid = -100;
 	int size = SWAP_FILE_MAX_SIZE - 1; //16MB
 	FILE *fp = fopen("swapfile", "w");
 	fseek(fp, size, SEEK_SET);
 	fputc('\0', fp);
 	fclose(fp);
-
-    swap_file_meta_head = sbrk(sizeof(swapfilemeta));
-    swap_file_meta_head->next == NULL;
 }
 
 /**
  * Finds page to write to swap file and free
  */
-int evict_page(size_t size) {
+int evict_page(size_t size) {+
+	DEBUG_PRINT(("evict_page called\n"));
 	memblock * block = memory_head;
 	while (block != NULL) {
 		if (block->tid != current_thread && block->size >= size) {
@@ -324,6 +326,7 @@ void swap_pages(int tid) {
     swapfilemeta * swap_file_meta = swap_file_meta_head;
     while (swap_file_meta != NULL) {
         // Swap the page
+		DEBUG_PRINT(("Swap file block tid %d\n", swap_file_meta->tid));
         if (swap_file_meta->tid == tid) {
             DEBUG_PRINT(("Block in swap file of size %zu belongs to thread %d\n", swap_file_meta->size, tid));
             size_t size = swap_file_meta->size;
@@ -348,7 +351,6 @@ void swap_pages(int tid) {
             memcpy(swap_file_meta->head, ptr, size);
             swap_file_meta->size = size;
         }
-
         swap_file_meta = swap_file_meta->next;
     }
 }

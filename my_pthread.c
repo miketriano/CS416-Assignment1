@@ -45,6 +45,8 @@ int DEBUG_endThread_count;
 int initialized2 = 0;
 volatile int FLAG =0;
 int schedulerCallLock =0;
+
+int thread_counter = 0;
 /* 
 const size_t TCB_SIZE = sizeof(tcb_t);
 const size_t MUTEX_SIZE = sizeof(my_pthread_mutex_t);	 */
@@ -367,6 +369,9 @@ void my_scheduler_initialize(){
 	scheduler-> alarmClock-> it_interval.tv_sec = 0;
 	scheduler-> alarmClock-> it_value.tv_sec=2;
 	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
+	
+	set_current_thread(((tcb_t*)(scheduler->runningQueues[0]->data))->tid);
+	
 	setcontext(((tcb_t*)(scheduler->runningQueues[0]->data))->context);
 	//swapcontext(schedulerContext, newContext);
 };
@@ -396,6 +401,9 @@ void my_scheduler_newThread(){
 	newThreadTCB->holding_locks = NULL;
 	newThreadTCB -> joinedThreads = NULL;
 	newThreadTCB->holding_locks = NULL;
+	
+	newThreadTCB->tid = thread_counter;
+	thread_counter++;
 	
 	//Set return value
 	*thread_handle = newThreadTCB->TID;
@@ -501,6 +509,9 @@ void my_scheduler_initLock(){
 	((Mutex*)*mutex_handle)->wait_list = NULL;
 	LL_append(&(scheduler->all_locks),(void*)*mutex_handle);
 	DEBUG_PRINT(("InitLock Return\n"));
+	
+	set_current_thread(((tcb_t*)(scheduler->runningQueues[0]->data))->tid);
+	
 	setcontext(runningContext);
 };
 
@@ -590,6 +601,9 @@ void scheduleNext(){
 	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
 	//DEBUG_PRINT(("Next Scheduled Thread TID %p, priority %d. \n",scheduler->runningThreadTCB->TID,scheduler->runningThreadTCB->priority ));
 	//setcontext(((tcb_t*)(((tcb_t*)(scheduler->runningQueues[priority]->data))->TID))->context);
+	
+	set_current_thread(((tcb_t*)(scheduler->runningQueues[0]->data))->tid);
+	
 	setcontext(((((tcb_t*)(scheduler->runningQueues[priority]->data))))->context);
 };
 
