@@ -370,7 +370,6 @@ void my_scheduler_initialize(){
 	scheduler-> alarmClock-> it_value.tv_sec=2;
 	setitimer(ITIMER_VIRTUAL, scheduler->alarmClock, NULL);	
 	
-	set_current_thread(((tcb_t*)(scheduler->runningQueues[0]->data))->tid);
 	
 	setcontext(((tcb_t*)(scheduler->runningQueues[0]->data))->context);
 	//swapcontext(schedulerContext, newContext);
@@ -510,7 +509,6 @@ void my_scheduler_initLock(){
 	LL_append(&(scheduler->all_locks),(void*)*mutex_handle);
 	DEBUG_PRINT(("InitLock Return\n"));
 	
-	set_current_thread(((tcb_t*)(scheduler->runningQueues[0]->data))->tid);
 	
 	setcontext(runningContext);
 };

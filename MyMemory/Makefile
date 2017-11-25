@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -g -c
-CFLAGS2 = -g -w -std=gnu99
+CFLAGS2 = -g -w
 AR = ar -rc
 RANLIB = ranlib
 
@@ -9,7 +9,7 @@ Target: my_memory.a
 all:: memoryTest
 
 memoryTest:
-	gcc -g -w -std=gnu99 -o memoryTest memoryTest.c -L./ -lmy_memory
+	gcc -g -w -o memoryTest memoryTest.c -L./ -lmy_memory
 
 my_memory.a: my_memory.o
 	$(AR) libmy_memory.a my_memory.o

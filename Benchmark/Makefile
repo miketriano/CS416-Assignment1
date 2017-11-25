@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -w -std=gnu99
+CFLAGS = -g -w
 
 all:: parallelCal vectorMultiply externalCal
 
@@ -13,4 +13,4 @@ externalCal:
 	$(CC) $(CFLAGS) -pthread -o externalCal externalCal.c -L../ -lmy_pthread -L../MyMemory -lmy_memory
 
 clean:
-	rm -rf parallelCal vectorMultiply externalCal *.o
+	rm -rf parallelCal vectorMultiply externalCal *.o ./record/
