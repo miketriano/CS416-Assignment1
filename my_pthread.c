@@ -63,9 +63,9 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 		DEBUG_PRINT(("Initializing Scheduler.\n"));	
 		initialized2 = 1;
 		/*Make of copy of itself, so that scheduler can warp it into a user thread*/
-		runningContext = malloc(sizeof(ucontext_t));
-		SCHEDULE = malloc(sizeof(ucontext_t));
-		
+		runningContext = myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
+		SCHEDULE = myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
+	
 		// Create context for scheduler
 		schedulerContext= malloc(sizeof(ucontext_t));
 		getcontext(schedulerContext);

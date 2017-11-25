@@ -23,6 +23,11 @@ int current_thread = -1;
 void * myallocate(size_t size, char * file, int line, int req) {
     DEBUG_PRINT(("myallocate called from thread %d\n", current_thread));
 
+	if (req == LIBRARYREQ) {
+		DEBUG_PRINT(("Using default malloc\n"));
+		return malloc(size);
+	}
+	
     if (!initialized) {
         initialize();
     }
@@ -50,6 +55,10 @@ void * myallocate(size_t size, char * file, int line, int req) {
 void mydeallocate(void * x, char * file, int line, int req) {
     DEBUG_PRINT(("mydeallocate called from %d\n", req));
 
+	if (req == LIBRARYREQ) {
+		return free(x);
+	}
+	
     memblock * block = (memblock*) x;
     block = block - sizeof(memblock);
     block->free = 1;
