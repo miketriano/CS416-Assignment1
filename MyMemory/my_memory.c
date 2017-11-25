@@ -21,10 +21,10 @@ int current_thread = -1;
  * malloc()
  */
 void * myallocate(size_t size, char * file, int line, int req) {
-    DEBUG_PRINT(("myallocate called from thread %d\n", current_thread));
+    //DEBUG_PRINT(("myallocate called from %d\n", req));
 
 	if (req == LIBRARYREQ) {
-		DEBUG_PRINT(("Using default malloc\n"));
+		//DEBUG_PRINT(("Using default malloc\n"));
 		return malloc(size);
 	}
 	
@@ -53,9 +53,10 @@ void * myallocate(size_t size, char * file, int line, int req) {
  * free()
  */
 void mydeallocate(void * x, char * file, int line, int req) {
-    DEBUG_PRINT(("mydeallocate called from %d\n", req));
+    //DEBUG_PRINT(("mydeallocate called from %d\n", req));
 
 	if (req == LIBRARYREQ) {
+		//DEBUG_PRINT(("RETURNING DEFAULT FREE()\n"));
 		return free(x);
 	}
 	
@@ -182,7 +183,7 @@ void * get_free_memory(size_t size) {
     while (block->next != NULL) {
 	    block = block->next;
     	    if (block->free && block->size >= size) {
-                DEBUG_PRINT(("Using a existing free block\n"));
+                //DEBUG_PRINT(("Using a existing free block\n"));
                 block->free = 0;
                 block->tid = current_thread;
                 allocated_memory = allocated_memory + block->size + sizeof(memblock);

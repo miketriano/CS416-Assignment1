@@ -67,10 +67,10 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 		SCHEDULE = myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	
 		// Create context for scheduler
-		schedulerContext= malloc(sizeof(ucontext_t));
+		schedulerContext= myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 		getcontext(schedulerContext);
 		schedulerContext->uc_link = NULL;
-		schedulerContext->uc_stack.ss_sp = malloc(10*STACK_SIZE);
+		schedulerContext->uc_stack.ss_sp = myallocate(10*STACK_SIZE, __FILE__, __LINE__, LIBRARYREQ);
 		schedulerContext->uc_stack.ss_size = 10*STACK_SIZE;
 		schedulerContext->uc_stack.ss_flags = 0;
 		
@@ -81,11 +81,11 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, void *(*func
 	}	
 	//blocks interruption
 	sigprocmask(SIG_BLOCK, sigvtalrm_set, NULL);
-	newThreadContext = (ucontext_t*)malloc(sizeof(ucontext_t));
+	newThreadContext = (ucontext_t*)myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	getcontext(newThreadContext);
 	FLAG = 2;
 	newThreadContext->uc_link = ENDTHREAD;
-	newThreadContext->uc_stack.ss_sp = malloc(STACK_SIZE);
+	newThreadContext->uc_stack.ss_sp = myallocate(STACK_SIZE, __FILE__, __LINE__, LIBRARYREQ);
 	newThreadContext->uc_stack.ss_size = STACK_SIZE;
 	newThreadContext->uc_stack.ss_flags = 0;
 	thread_handle = thread;
@@ -131,14 +131,14 @@ int my_pthread_mutex_init(my_pthread_mutex_t *mutex, const pthread_mutexattr_t *
 		DEBUG_PRINT(("Initializing Scheduler, called from mutex_init\n"));	
 		initialized2 = 1;
 		/*Make of copy of itself, so that scheduler can warp it into a user thread*/
-		runningContext = malloc(sizeof(ucontext_t));
-		SCHEDULE = malloc(sizeof(ucontext_t));
+		runningContext = myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
+		SCHEDULE = myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 		
 		// Create context for scheduler
-		schedulerContext= malloc(sizeof(ucontext_t));
+		schedulerContext= myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 		getcontext(schedulerContext);
 		schedulerContext->uc_link = NULL;
-		schedulerContext->uc_stack.ss_sp = malloc(10*STACK_SIZE);
+		schedulerContext->uc_stack.ss_sp = myallocate(10*STACK_SIZE, __FILE__, __LINE__, LIBRARYREQ);
 		schedulerContext->uc_stack.ss_size = 10*STACK_SIZE;
 		schedulerContext->uc_stack.ss_flags = 0;
 		
@@ -263,11 +263,11 @@ void my_scheduler_initialize(){
 	/*record time this is called*/
 	clock_t tempClock = clock();
 	/*Setting constants*/
-	scheduler = (my_scheduler_t*)malloc(sizeof(my_scheduler_t));
+	scheduler = (my_scheduler_t*)myallocate(sizeof(my_scheduler_t), __FILE__, __LINE__, LIBRARYREQ);
 	/*Scheduler variables*/
 	
 
-	scheduler->runningQueues = (node_t **) malloc(LEVELS_NUM*sizeof(node_t*));
+	scheduler->runningQueues = (node_t **)myallocate(LEVELS_NUM*sizeof(node_t*), __FILE__, __LINE__, LIBRARYREQ);
 	int i;
 	
 	for (i=0;i<LEVELS_NUM;i++){
@@ -296,56 +296,56 @@ void my_scheduler_initialize(){
 	
 	//NEWTHREAD
 	DEBUG_PRINT(("Flag1\n"));
-	NEWTHREAD = (ucontext_t*) malloc(sizeof(ucontext_t));
+	NEWTHREAD = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(NEWTHREAD);
 	makecontext(NEWTHREAD, (void*)&my_scheduler_newThread, 0, NULL);
 	
 	//ENDTHREAD
-	ENDTHREAD = (ucontext_t*) malloc(sizeof(ucontext_t));
+	ENDTHREAD = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(ENDTHREAD);
 	makecontext(ENDTHREAD, (void*)&my_scheduler_endThread, 0, NULL);
 
 	//SCHEDULE
-	SCHEDULE = (ucontext_t*) malloc(sizeof(ucontext_t));
+	SCHEDULE = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(SCHEDULE);
 	makecontext(SCHEDULE, (void*)&my_scheduler_schedule, 0, NULL);
 	
 	
 	
 	//INITLOCK
-	INITLOCK = (ucontext_t*) malloc(sizeof(ucontext_t));
+	INITLOCK = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(INITLOCK);
 	makecontext(INITLOCK, (void*)&my_scheduler_initLock, 0, NULL);
 	
 	//DESTROYLOCK
-	DESTROYLOCK = (ucontext_t*) malloc(sizeof(ucontext_t));
+	DESTROYLOCK = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(DESTROYLOCK);
 	makecontext(DESTROYLOCK, (void*)&my_scheduler_destoryLock, 0, NULL);
 		
 	// YIELD
-	YIELD = (ucontext_t*) malloc(sizeof(ucontext_t));
+	YIELD = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(YIELD);
 	makecontext(YIELD, (void*)&my_scheduler_yield, 0, NULL);
 	
 	// JOIN;
-	JOIN = (ucontext_t*) malloc(sizeof(ucontext_t));
+	JOIN = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(JOIN);
 	makecontext(JOIN, (void*)&my_scheduler_join, 0, NULL);
 	
 	//DEQUEUE
-	DEQUEUE = (ucontext_t*) malloc(sizeof(ucontext_t));
+	DEQUEUE = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(DEQUEUE);
 	makecontext(DEQUEUE, (void*)&my_scheduler_dequeue, 0, NULL);
 	
 	//REQUEUE;
-	REQUEUE = (ucontext_t*) malloc(sizeof(ucontext_t));
+	REQUEUE = (ucontext_t*) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	initKernalContext(REQUEUE);
 	makecontext(REQUEUE, (void*)&my_scheduler_requeue, 0, NULL);
 	
 	DEBUG_PRINT(("Flag3\n"));
 	/*Wrap oringal context into a thread*/
-	tcb_t * originalThreadTCB = (tcb_t *)malloc(sizeof(tcb_t));
-	ucontext_t * newContext = (ucontext_t *) malloc(sizeof(ucontext_t)) ;
+	tcb_t * originalThreadTCB = (tcb_t *)myallocate(sizeof(tcb_t), __FILE__, __LINE__, LIBRARYREQ);
+	ucontext_t * newContext = (ucontext_t *) myallocate(sizeof(ucontext_t), __FILE__, __LINE__, LIBRARYREQ);
 	memcpy (newContext, runningContext,sizeof(ucontext_t));
 	originalThreadTCB-> context = newContext;
 	originalThreadTCB-> TID = (my_pthread_t)originalThreadTCB;		
@@ -387,7 +387,7 @@ void my_scheduler_newThread(){
 	//Save running context
 	memcpy (scheduler->runningThreadTCB->context, runningContext,sizeof(ucontext_t));	
 	
-	tcb_t * newThreadTCB = (tcb_t *)malloc(sizeof(tcb_t));
+	tcb_t * newThreadTCB = (tcb_t *)myallocate(sizeof(tcb_t), __FILE__, __LINE__, LIBRARYREQ);
 	DEBUG_PRINT(("New Thread Created: %p. \n", newThreadTCB));
 	newThreadTCB-> context = newThreadContext;
 	newThreadTCB-> TID =  (my_pthread_t)newThreadTCB;		
@@ -455,9 +455,9 @@ void my_scheduler_endThread(){
 	
 	
 	//Free up memory    
-	free(((tcb_t *)(temp->data))->context);
-	free(temp->data);
-	free(temp);	
+	mydeallocate(((tcb_t *)(temp->data))->context, __FILE__, __LINE__, LIBRARYREQ);
+	mydeallocate(temp->data, __FILE__, __LINE__, LIBRARYREQ);
+	mydeallocate(temp, __FILE__, __LINE__, LIBRARYREQ);	
 	//DEBUG_PRINT(("4\n"));
 	//Next thread
 	scheduleNext();	
@@ -473,12 +473,12 @@ void my_scheduler_schedule(){
 	
 	scheduler->runningThreadTCB->priority ++;
 	if( scheduler->runningThreadTCB->priority>=LEVELS_NUM){
-		scheduler->runningThreadTCB->priority = 	-1;
+		scheduler->runningThreadTCB->priority = -1;
 	}
 	
 	node_t * temp = scheduler->runningQueues[currentPriority];
 	scheduler->runningQueues[currentPriority] =temp->next; 
-	free(temp);
+	mydeallocate(temp, __FILE__, __LINE__, LIBRARYREQ);
 	LL_append(&(scheduler->runningQueues[scheduler->runningThreadTCB->priority]), scheduler->runningThreadTCB);
 	printAllThreads();
 	scheduleNext();
@@ -502,7 +502,7 @@ void my_scheduler_schedule(){
 //INITLOCK
 void my_scheduler_initLock(){
 	DEBUG_PRINT(("initlock Called:  %p\n",mutex_handle));
-	*mutex_handle= (Mutex*)malloc(sizeof(my_pthread_mutex_t));
+	*mutex_handle= (Mutex*)myallocate(sizeof(my_pthread_mutex_t), __FILE__, __LINE__, LIBRARYREQ);
 	((Mutex*)*mutex_handle)->locked = 0;
 	((Mutex*)*mutex_handle)->owner = NULL;
 	((Mutex*)*mutex_handle)->wait_list = NULL;
@@ -525,7 +525,7 @@ void my_scheduler_dequeue(){
 	//Free node memory
 	node_t * temp = scheduler->runningQueues[priority];
 	scheduler->runningQueues[priority] =temp->next; 
-	free(temp);
+	mydeallocate(temp, __FILE__, __LINE__, LIBRARYREQ);
 	
 	LL_append(&(scheduler->waitingQueue), scheduler->runningThreadTCB);
 	scheduleNext();
@@ -543,7 +543,7 @@ void my_scheduler_join(){
 		//Free node memory
 		node_t * temp = scheduler->runningQueues[priority];
 		scheduler->runningQueues[priority] =temp->next; 
-		free(temp);	
+		mydeallocate(temp, __FILE__, __LINE__, LIBRARYREQ);
 		//Add to the scheduler list as well
 		LL_append(&(scheduler->waitingQueue), scheduler->runningThreadTCB);
 		scheduleNext();
@@ -600,7 +600,6 @@ void scheduleNext(){
 	//DEBUG_PRINT(("Next Scheduled Thread TID %p, priority %d. \n",scheduler->runningThreadTCB->TID,scheduler->runningThreadTCB->priority ));
 	//setcontext(((tcb_t*)(((tcb_t*)(scheduler->runningQueues[priority]->data))->TID))->context);
 	
-	set_current_thread(((tcb_t*)(scheduler->runningQueues[0]->data))->tid);
 	
 	setcontext(((((tcb_t*)(scheduler->runningQueues[priority]->data))))->context);
 };
@@ -610,7 +609,7 @@ void scheduleNext(){
 void initKernalContext(ucontext_t* context){
 	getcontext(context);
 	context->uc_link = NULL;
-	context->uc_stack.ss_sp = malloc(STACK_SIZE);
+	context->uc_stack.ss_sp = myallocate(STACK_SIZE, __FILE__, __LINE__, LIBRARYREQ);
 	context->uc_stack.ss_size = STACK_SIZE;
 	context->uc_stack.ss_flags = 0;	
 	sigaddset(&(context->uc_sigmask), SIGVTALRM);
@@ -658,11 +657,11 @@ void printAllThreadsForLock(my_pthread_mutex_t* mutex){
 void LL_push(node_t ** listHead, void * new_data){
 	node_t * newNode;
 	if(listHead ==NULL){
-		newNode = (node_t *) malloc(sizeof(node_t));
+		newNode = (node_t *) myallocate(sizeof(node_t), __FILE__, __LINE__, LIBRARYREQ);
 		newNode->data = new_data;
 		newNode->next = NULL;
 	}else{
-		newNode = (node_t *) malloc(sizeof(node_t));
+		newNode = (node_t *) myallocate(sizeof(node_t), __FILE__, __LINE__, LIBRARYREQ);
 		newNode->data = new_data;
 		newNode->next = *listHead;
 	}
@@ -676,14 +675,14 @@ int LL_pop(node_t ** listHead, void ** returned_data){
 		*returned_data = (*listHead)->data;
 		node_t * temp = *listHead;
 		*listHead = (*listHead)->next;
-		free(temp);
+		mydeallocate(temp, __FILE__, __LINE__, LIBRARYREQ);
 		return 1;
 	}
 };
 void LL_append(node_t ** listHead, void * new_data){
 	node_t * newNode;
 	if(*listHead ==NULL){
-		newNode = (node_t *) malloc(sizeof(node_t));
+		newNode = (node_t *) myallocate(sizeof(node_t), __FILE__, __LINE__, LIBRARYREQ);
 		newNode->data = new_data;
 		newNode->next = NULL;
 		*listHead = newNode;
@@ -692,7 +691,7 @@ void LL_append(node_t ** listHead, void * new_data){
 		while(current->next!=NULL){
 			current = current->next;
 		}
-		newNode = (node_t *) malloc(sizeof(node_t));
+		newNode = (node_t *) myallocate(sizeof(node_t), __FILE__, __LINE__, LIBRARYREQ);
 		newNode->data = new_data;
 		newNode->next = NULL;
 		current->next = newNode;
@@ -717,11 +716,11 @@ int LL_remove(node_t ** listHead, void * target){
 				//DEBUG_PRINT(("Remove Node!! \n"));
 				//while(1){}
 				if(current == *listHead){
-					free(current);	
+					mydeallocate(current, __FILE__, __LINE__, LIBRARYREQ);
 					*listHead = NULL;
 				}else{
 					last->next = current->next;
-					free(current);
+					mydeallocate(current, __FILE__, __LINE__, LIBRARYREQ);
 				}
 				return 0;
 			}
